@@ -1,0 +1,31 @@
+# dependencies and build output
+node_modules/
+dist/
+.build/
+
+# raw downloads (re-fetchable from Poly Haven) and local test material
+assets_raw/
+shots/
+scratch*/
+*.log
+*.txt
+.edgeone/
+
+# local test and debugging scripts (machine-specific browser paths)
+clicktest.mjs
+load_chrome.mjs
+loadcheck.mjs
+mobtest.mjs
+perf.mjs
+perf_chrome.mjs
+shoot.mjs
+shoot_m.mjs
+shoot_sw.mjs
+stages.mjs
+swcheck.mjs
+extract_imgs.py
+inspect.py
+
+# unused character models (Mixamo licence; people were removed from the scene)
+assets/Michelle.glb
+assets/Soldier.glb

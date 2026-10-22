@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shantiban City 3D Walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anek+Bangla:wdth,wght@75..125,300..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --panel:rgba(16,38,26,.80);--line:rgba(243,239,224,.16);--text:#f3efe0;--muted:#b9c3b0;
+  --laterite:#a5432a;--marigold:#f0a91b;--board:#fbfaf3;--board-ink:#1f4d2c;--bg:#1b2c22;
+  color-scheme:light;box-sizing:border-box;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;--panel:rgba(9,24,16,.86);--text:#efeadb;--muted:#a9b3a1;--board:#efede3;--bg:#0f1c15;}}
+:root[data-theme="dark"]{color-scheme:dark;--panel:rgba(9,24,16,.86);--text:#efeadb;--muted:#a9b3a1;--board:#efede3;--bg:#0f1c15;}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none!important}
+html{height:100%}
+body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font-family:"Anek Bangla","Noto Sans Bengali",system-ui,sans-serif;font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
+canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+canvas#scene.dragging{cursor:grabbing}
+button,input{font-family:inherit}
+:focus-visible{outline:2px solid var(--marigold);outline-offset:2px}
+.hud{position:fixed;z-index:5}
+.panel{background:var(--panel);-webkit-backdrop-filter:blur(12px) saturate(1.15);backdrop-filter:blur(12px) saturate(1.15);border:1px solid var(--line);color:var(--text)}
+.board{background:var(--board);color:var(--board-ink);border:3px solid #1f4d2c;border-radius:4px;
+  box-shadow:inset 0 0 0 2px var(--board),inset 0 0 0 3.5px var(--laterite),0 8px 22px rgba(0,0,0,.28)}
+.board .bn{font-weight:600;color:var(--laterite);line-height:1}
+.board .en{font-weight:800;font-stretch:125%;line-height:1.02;color:#1f4d2c;letter-spacing:.005em}
+.board .loc{color:#3d5a46;font-stretch:88%}
+#board{top:calc(14px + env(safe-area-inset-top,0px));left:calc(14px + env(safe-area-inset-left,0px));padding:8px 14px 9px}
+#board .bn{font-size:14px}#board .en{font-size:22px}#board .loc{font-size:12.5px}
+#where{top:calc(18px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);
+  display:flex;gap:10px;align-items:baseline;padding:7px 14px;border-radius:999px;white-space:nowrap;font-size:14px;max-width:calc(100vw - 420px);overflow:hidden;text-overflow:ellipsis}
+#heading{color:var(--marigold);font-weight:700;font-stretch:110%;min-width:4.2em}
+#insp{top:calc(118px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));width:272px;border-radius:14px;padding:14px 16px 16px}
+.insp-x{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:var(--text);font-size:22px;line-height:1;cursor:pointer}
+#insp{position:fixed}
+.insp-no{font-weight:800;font-stretch:118%;font-size:34px;line-height:1}
+.insp-area{font-size:18px;font-weight:700;color:var(--marigold);margin-top:6px}
+.insp-area small{color:var(--muted);font-weight:400;font-size:14px;margin-left:4px}
+#insp dl{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:12px 0 12px;font-size:14px}
+#insp dt{color:var(--muted)}#insp dd{margin:0}
+.insp-note{font-size:12.5px;color:var(--muted);border-left:2px solid var(--laterite);padding-left:9px;margin:12px 0 0}
+.insp-design{font-size:13px;color:var(--muted);margin:0 0 10px}
+.insp-actions{display:grid;gap:8px}
+.btn{appearance:none;border:0;border-radius:10px;padding:10px 14px;font-weight:700;font-size:15px;cursor:pointer}
+.btn-primary{background:var(--marigold);color:#1d1606}.btn-primary:hover{background:#ffba2e}
+.btn-primary:disabled{opacity:.7;cursor:progress}
+.btn-ghost{background:rgba(255,255,255,.08);color:var(--text);border:1px solid rgba(255,255,255,.24)}.btn-ghost:hover{background:rgba(255,255,255,.14)}
+#insp .btn{width:100%}
+#bar{left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  display:flex;gap:12px;align-items:center;padding:7px;border-radius:16px;flex-wrap:wrap;justify-content:center;width:max-content;max-width:calc(100vw - 24px)}
+.modes{display:flex;background:rgba(255,255,255,.06);border-radius:11px;padding:3px}
+.modes button{appearance:none;border:0;background:transparent;color:var(--muted);font-weight:600;font-size:14.5px;padding:9px 12px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.modes button:hover{color:var(--text)}
+.modes button[aria-pressed="true"]{background:var(--marigold);color:#1d1606}
+.time{display:flex;align-items:center;gap:9px;font-size:14px;color:var(--muted);padding-left:4px}
+.time input{width:104px;accent-color:var(--marigold)}
+.time output{color:var(--text);font-weight:600;min-width:5.2em;font-variant-numeric:tabular-nums}
+#allVillas{padding:9px 13px;font-size:14px;white-space:nowrap}
+#goto{display:flex;gap:6px;padding-right:2px}
+#goto input{width:92px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:var(--text);border-radius:9px;padding:8px 10px;font-size:14.5px}
+#goto input::placeholder{color:var(--muted)}
+#goto .btn{padding:8px 12px;font-size:14px}
+#mapwrap{right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));padding:8px;border-radius:14px;width:288px}
+.map-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.map-head b{font-size:13px;font-weight:700;letter-spacing:.02em}
+.map-tools{display:flex;align-items:center;gap:6px}
+.map-title{appearance:none;border:0;background:transparent;color:var(--text);padding:4px 2px;cursor:default;font:inherit}
+.map-min{appearance:none;width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:var(--text);font-size:18px;font-weight:700;line-height:1;cursor:pointer}
+.map-min:hover{background:rgba(255,255,255,.16)}
+#mapwrap.min{width:auto;padding:6px 8px}
+#mapwrap.min #mini,#mapwrap.min .map-cap,#mapwrap.min .map-key,#mapwrap.min .modes{display:none}
+#mapwrap.min .map-head{margin:0}
+#mapwrap.min .map-title{cursor:pointer}
+#mapwrap.min .map-title b::before{content:"▴ ";color:var(--marigold)}
+.map-head .modes button{padding:5px 11px;font-size:12.5px}
+#mini{display:block;width:100%;height:272px;border-radius:9px;cursor:pointer;touch-action:manipulation}
+.map-cap{font-size:12px;color:var(--muted);padding:6px 2px 0;display:flex;justify-content:space-between;gap:8px}
+#mapYou{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.map-key{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;color:var(--muted);padding:6px 2px 0}
+.map-key i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+#logoBadge{top:calc(14px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));display:flex;align-items:center;gap:10px;
+  background:#fff;border-radius:14px;padding:6px 14px 6px 6px;box-shadow:0 6px 20px rgba(0,0,0,.25);text-decoration:none}
+#logoBadge img{width:84px;height:84px;display:block;border-radius:10px}
+#logoBadge .t{display:flex;flex-direction:column;line-height:1.1}
+#logoBadge .bn{color:#a5432a;font-weight:600;font-size:14px}
+#logoBadge .en{color:#1f4d2c;font-weight:800;font-stretch:118%;font-size:18px}
+#logoBadge .loc{color:#3d5a46;font-size:12px;margin-top:2px}
+#zoom{right:calc(316px + env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px}
+#zoom button{width:40px;height:40px;border-radius:10px;font-size:20px;font-weight:700;padding:0}
+#keys{left:calc(14px + env(safe-area-inset-left,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));font-size:13px;color:var(--muted);padding:9px 12px;border-radius:12px;max-width:250px}
+#keys b{color:var(--text);font-weight:600}
+#side{left:calc(14px + env(safe-area-inset-left,0px));top:calc(14px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:8px}
+#side .btn{padding:9px 13px;font-size:14px;text-align:left}
+#near,#settings{left:calc(14px + env(safe-area-inset-left,0px));top:calc(124px + env(safe-area-inset-top,0px));width:300px;max-height:calc(100vh - 300px);overflow:auto;border-radius:14px;padding:10px}
+.near-h{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--marigold);padding:10px 8px 4px}
+.near-row{display:flex;justify-content:space-between;gap:12px;width:100%;appearance:none;border:0;background:transparent;color:var(--text);padding:8px;border-radius:8px;font-size:14.5px;cursor:pointer;text-align:left}
+.near-row:hover{background:rgba(255,255,255,.08)}
+.near-row.static{cursor:default}.near-row.static:hover{background:transparent}
+.near-row b{color:var(--marigold);font-weight:600;white-space:nowrap}
+.near-note{font-size:12.5px;color:var(--muted);padding:6px 8px 2px;margin:4px 0 0;border-top:1px solid var(--line)}
+.set-row{padding:8px}
+.set-row .lbl{font-size:13px;color:var(--muted);margin-bottom:6px}
+#settings .modes{flex-wrap:wrap}
+#crosshair{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(255,255,255,.85);box-shadow:0 0 0 1.5px rgba(0,0,0,.35);z-index:4;pointer-events:none}
+#toast{left:50%;top:calc(62px + env(safe-area-inset-top,0px));transform:translateX(-50%);padding:9px 15px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:min(92vw,480px);text-align:center}
+#toast.on{opacity:1}
+#joy{position:fixed;z-index:6;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:2px solid rgba(255,255,255,.35);background:rgba(10,25,16,.25);pointer-events:none}
+#knob{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(240,169,27,.85)}
+/* cinematic film: letterbox and lower-third captions */
+.lb{position:fixed;left:0;right:0;height:0;background:#050806;z-index:3;transition:height .9s ease;pointer-events:none}
+#lbTop{top:0}#lbBot{bottom:0}
+body.cine .lb{height:9vh}
+body.cine #where,body.cine #mapwrap,body.cine #keys,body.cine #side,body.cine #near,body.cine #settings,body.cine #logoBadge{opacity:0;pointer-events:none}
+body.cine #bar{opacity:.35}body.cine #bar:hover{opacity:1}
+#where,#mapwrap,#keys,#side,#logoBadge,#bar{transition:opacity .6s}
+#cap{position:fixed;left:calc(6vw + env(safe-area-inset-left,0px));bottom:calc(13vh + 64px);z-index:6;pointer-events:none;opacity:0;transform:translateY(10px);transition:opacity .9s,transform .9s;max-width:min(88vw,720px)}
+#cap.on{opacity:1;transform:none}
+#cap b{display:block;font-weight:800;font-stretch:118%;font-size:clamp(28px,4.4vw,56px);line-height:1.02;color:#fff;text-shadow:0 2px 22px rgba(0,0,0,.55);letter-spacing:.01em}
+#cap span{display:block;margin-top:10px;font-size:clamp(15px,1.6vw,21px);color:#f6e7c4;text-shadow:0 1px 12px rgba(0,0,0,.7)}
+#cap::before{content:"";display:block;width:54px;height:4px;background:var(--marigold);margin-bottom:14px;border-radius:2px}
+#start{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:24px;
+  background:radial-gradient(ellipse at 50% 45%,rgba(10,24,16,.1),rgba(10,24,16,.82));overflow:auto}
+.start-card{max-width:640px;width:100%}
+.start-board{display:inline-block;padding:14px 22px 15px;transform:rotate(-1.2deg)}
+.start-board .bn{font-size:24px}.start-board .en{font-size:clamp(36px,7vw,58px)}.start-board .loc{font-size:15px;margin-top:3px}
+.start-lede{font-size:17px;line-height:1.55;color:#eef0e4;max-width:54ch;margin:22px 0 20px;text-shadow:0 1px 8px rgba(0,0,0,.5)}
+.start-actions{display:flex;gap:10px;flex-wrap:wrap}
+.start-actions .btn{padding:13px 20px;font-size:16px}
+.prog{height:6px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;margin:18px 0 8px;max-width:420px}
+#progBar{display:block;height:100%;width:2%;background:var(--marigold);transition:width .3s}
+.gpu-warn{font-size:14px;line-height:1.5;color:#1d1606;background:#f6d27a;border-radius:10px;padding:10px 14px;margin:16px 0 0;max-width:60ch}
+#loadMsg{font-size:14px;color:#dfe5d6;margin:0;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+.start-meta{font-size:13.5px;color:#cdd3c3;margin-top:16px;max-width:60ch;line-height:1.5;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+.start-meta kbd{font-family:inherit;font-weight:600;color:#fff;background:rgba(255,255,255,.12);border-radius:4px;padding:0 5px}
+@media (min-width:761px){
+  /* keep the bottom bar in the space left of the map */
+  #bar{left:calc((100vw - 316px)/2);max-width:calc(100vw - 340px)}
+  #keys{display:none!important}
+}
+@media (max-width:1760px) and (min-width:761px){.time{display:none}}
+@media (max-width:1400px) and (min-width:761px){#allVillas{display:none}#bar .tod button{padding:9px 9px}}
+@media (max-width:1150px) and (min-width:761px){#mapwrap{bottom:calc(96px + env(safe-area-inset-bottom,0px));width:240px}#mini{height:220px}#zoom{bottom:calc(96px + env(safe-area-inset-bottom,0px));right:calc(268px + env(safe-area-inset-right,0px))}#where{max-width:calc(100vw - 560px)}}
+canvas#scene.over-plot{cursor:pointer}
+.mob-only{display:none}
+@media (max-width:760px){
+  #where,#keys{display:none!important}
+  #logoBadge{top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));padding:4px;border-radius:12px}
+  #logoBadge img{width:52px;height:52px}#logoBadge .t{display:none}
+  #mapwrap{left:8px;right:8px;width:auto;bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+  #mini{height:min(62vh,420px)}
+  #side{top:calc(14px + env(safe-area-inset-top,0px));left:calc(8px + env(safe-area-inset-left,0px));flex-direction:row;gap:6px}
+  #side .btn{padding:8px 11px;font-size:13px}
+  #bar{left:8px;right:8px;transform:none;width:auto;max-width:none;bottom:calc(8px + env(safe-area-inset-bottom,0px));padding:4px;gap:0;border-radius:14px}
+  #bar .modes:first-child{flex:1;justify-content:space-between;overflow-x:auto}
+  #bar .tod,#bar .time,#allVillas,#goto{display:none}
+  .modes button{padding:10px 8px;font-size:13.5px}
+  #insp{top:auto;left:8px;right:8px;bottom:calc(64px + env(safe-area-inset-bottom,0px));width:auto;padding:12px 14px 14px;max-height:52vh;overflow:auto}
+  .insp-no{font-size:24px}.insp-area{font-size:16px}#insp dl{margin:8px 0;font-size:13.5px}.insp-note{display:none}
+  #near,#settings{left:8px;right:8px;top:auto;bottom:calc(64px + env(safe-area-inset-bottom,0px));width:auto;max-height:60vh}
+  #zoom{bottom:calc(70px + env(safe-area-inset-bottom,0px));right:calc(10px + env(safe-area-inset-right,0px))}
+  #toast{top:calc(56px + env(safe-area-inset-top,0px))}
+  #cap{bottom:calc(6vh + 76px);left:16px}
+  body.cine .lb{height:6vh}
+  .mob-only{display:block}
+  .set-row form{display:flex;gap:6px}.set-row input{flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:var(--text);border-radius:9px;padding:9px 10px;font-size:15px}
+}
+@media (prefers-reduced-motion: reduce){#toast,.lb,#cap{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="3D walkthrough of Shantiban City and its surroundings"></canvas>
+<div class="lb" id="lbTop"></div><div class="lb" id="lbBot"></div>
+<div id="cap" aria-live="polite"><b></b><span></span></div>
+<div id="logoBadge" class="hud" hidden>
+  <img id="logo" alt="Shantiban City logo" hidden>
+  <div class="t"><span class="bn" lang="bn">শান্তিবন সিটি</span><span class="en">Shantiban City</span><span class="loc">Tapna, Baruipur · 220 plots</span></div>
+</div>
+<div id="side" class="hud" hidden>
+  <button class="btn btn-ghost panel mob-only" id="mapBtn" type="button">Map</button>
+  <button class="btn btn-ghost panel" id="nearBtn" type="button">Nearby</button>
+  <button class="btn btn-ghost panel" id="setBtn" type="button">Settings</button>
+</div>
+<div id="near" class="hud panel" hidden><div id="nearList"></div></div>
+<div id="settings" class="hud panel" hidden>
+  <div class="set-row mob-only"><div class="lbl">Find a plot</div><form id="goto2" autocomplete="off"><input id="gotoIn2" placeholder="Plot 1–220" inputmode="numeric" aria-label="Plot number"><button class="btn btn-primary" type="submit">Go</button></form></div>
+  <div class="set-row mob-only"><div class="lbl">Time of day</div><div class="modes"><button data-tod="dawn">Dawn</button><button data-tod="morning">Morning</button><button data-tod="noon">Noon</button><button data-tod="golden">Golden</button><button data-tod="night">Night</button></div></div>
+  <div class="set-row"><button class="btn btn-ghost" id="allVillas2" type="button">Sample homes on all plots</button></div>
+  <div class="set-row"><div class="lbl">Clouds</div><div class="modes"><button data-cloud="0.18" aria-pressed="false">Clear</button><button data-cloud="0.55" aria-pressed="true">Fair</button><button data-cloud="0.82" aria-pressed="false">Cloudy</button></div></div>
+  <div class="set-row"><div class="lbl">Wind</div><div class="modes"><button data-wind="0.35" aria-pressed="false">Calm</button><button data-wind="1" aria-pressed="true">Breezy</button><button data-wind="1.9" aria-pressed="false">Windy</button></div></div>
+  <div class="set-row"><div class="lbl">Labels and distance lines</div><div class="modes"><button id="labelsBtn" aria-pressed="true">Show labels</button></div></div>
+  <div class="set-row"><div class="lbl">Quality (reloads the page)</div><div class="modes"><button data-q="mobile">Phone</button><button data-q="fast">Light</button><button data-q="balanced">Balanced</button><button data-q="high">High</button></div></div>
+</div>
+<div id="where" class="hud panel" hidden><span id="heading">N 0°</span><span id="place">Main gate</span></div>
+<aside id="insp" class="hud panel" hidden aria-live="polite"></aside>
+<nav id="bar" class="hud panel" hidden aria-label="View controls">
+  <div class="modes">
+    <button data-mode="walk" aria-pressed="true">Walk</button>
+    <button data-mode="drone" aria-pressed="false">Fly</button>
+    <button data-mode="plan" aria-pressed="false">Plan</button>
+    <button data-mode="tour" aria-pressed="false">Guided walk</button>
+    <button data-mode="cine" aria-pressed="false">Drone film</button>
+  </div>
+  <div class="modes tod" role="group" aria-label="Time of day">
+    <button data-tod="dawn" aria-pressed="false">Dawn</button>
+    <button data-tod="morning" aria-pressed="false">Morning</button>
+    <button data-tod="noon" aria-pressed="false">Noon</button>
+    <button data-tod="golden" aria-pressed="false">Golden hour</button>
+    <button data-tod="night" aria-pressed="false">Night</button>
+  </div>
+  <label class="time"><input type="range" id="time" min="4.5" max="23.5" step="0.05" value="8" aria-label="Time of day"><output id="timeOut">8:00 am</output></label>
+  <button class="btn btn-ghost" id="allVillas" type="button">Sample homes on all plots</button>
+  <form id="goto" autocomplete="off"><input id="gotoIn" placeholder="Plot 1–220" inputmode="numeric" aria-label="Go to plot number"><button class="btn btn-ghost" type="submit">Go</button></form>
+</nav>
+<div id="zoom" class="hud" hidden>
+  <button class="btn btn-ghost panel" id="zin" aria-label="Zoom in">+</button>
+  <button class="btn btn-ghost panel" id="zout" aria-label="Zoom out">−</button>
+</div>
+<div id="mapwrap" class="hud panel" hidden>
+  <div class="map-head"><button class="map-title" id="mapTitle" type="button" aria-expanded="true"><b>Map</b></button><div class="map-tools"><div class="modes" role="group" aria-label="Map view"><button data-map="site" aria-pressed="true">Site</button><button data-map="area" aria-pressed="false">Area</button></div><button class="map-min" id="mapMin" type="button" aria-label="Minimise map" title="Minimise map">–</button></div></div>
+  <canvas id="mini" aria-label="Map. Site view shows the plots; Area view shows nearby places. Tap to go there."></canvas>
+  <div class="map-cap"><span id="mapYou"></span><span id="mapHint">Tap the map to go there</span></div>
+  <div class="map-key"><span><i style="background:#d9822b"></i>Market</span><span><i style="background:#2f6fb0"></i>School</span><span><i style="background:#d03a2f"></i>Hospital</span><span><i style="background:#6b4fa0"></i>Bus</span><span><i style="background:#2e8a6a"></i>Koyal More</span></div>
+</div>
+<div id="keys" class="hud panel" hidden></div>
+<div id="toast" class="hud panel" role="status"></div>
+<div id="joy" hidden><div id="knob"></div></div>
+<div id="start">
+  <div class="start-card">
+    <div class="board start-board">
+      <div class="bn" lang="bn">শান্তিবন সিটি</div>
+      <div class="en">Shantiban City</div>
+      <div class="loc">Tapna, Baruipur, South 24 Parganas</div>
+    </div>
+    <p class="start-lede">Walk the 220 plots before you visit. Every plot is numbered from 1 to 220 across Blocks A to E, inside a gated layout with a park, community hall and shops. The nearby market, school, hospital and bus terminus are placed at their approximate distances.</p>
+    <div class="start-actions">
+      <button class="btn btn-primary" id="enterCine" disabled>Loading the site…</button>
+      <button class="btn btn-ghost" id="enterWalk" disabled>Walk in from the main gate</button>
+      <button class="btn btn-ghost" id="enterPlan" disabled>See the plan from above</button>
+    </div>
+    <p id="gpuWarn" class="gpu-warn" hidden><b>Your browser is drawing 3D without the graphics card</b>, so this page is running in a reduced mode to avoid slowing your computer. To fix it in Chrome: Settings → System → turn on “Use graphics acceleration when available”, then close every Chrome window and reopen it.</p>
+    <button class="btn btn-ghost" id="loadAnyway" type="button" hidden style="margin-top:10px">Load anyway (very slow)</button>
+    <div class="prog"><i id="progBar"></i></div>
+    <p id="loadMsg">Loading the 3D engine…</p>
+    <p class="start-meta">22.3658° N, 88.3377° E. Click or tap any plot to see its details and preview a home on it. Drag to look around; <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys to move. On a phone, use the left thumb to walk and the right to look. The plot layout is illustrative; please confirm plot sizes with the project office. Buildings outside the boundary are illustrative.</p>
+  </div>
+</div>
+{{ASSETS}}
+<script>setTimeout(function(){if(!window.__boot){var m=document.getElementById('loadMsg');if(m)m.textContent='The 3D view didn’t start. Please reload, or open it in a recent Chrome, Edge, Firefox or Safari.';}},20000);</script>
+{{SCRIPT}}
+</body>
+</html>

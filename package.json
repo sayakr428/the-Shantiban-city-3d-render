@@ -1,0 +1,20 @@
+{
+  "name": "shantiban-city-3d",
+  "version": "1.0.0",
+  "description": "Realistic browser 3D walkthrough of Shantiban City (220 plots), Tapna, Baruipur - three.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "node serve.mjs dist/web 8091",
+    "deploy": "cd dist/web && edgeone makers deploy -n shantiban-city-3d"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "three": "^0.160.0",
+    "playwright": "^1.48.2"
+  },
+  "private": true
+}
