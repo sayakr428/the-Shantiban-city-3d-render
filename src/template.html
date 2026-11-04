@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Shantiban City 3D Walkthrough</title>
+{{FAVICON}}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anek+Bangla:wdth,wght@75..125,300..800&display=swap" rel="stylesheet">
@@ -110,6 +111,8 @@ button,input{font-family:inherit}
 #crosshair{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(255,255,255,.85);box-shadow:0 0 0 1.5px rgba(0,0,0,.35);z-index:4;pointer-events:none}
 #toast{left:50%;top:calc(62px + env(safe-area-inset-top,0px));transform:translateX(-50%);padding:9px 15px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:min(92vw,480px);text-align:center}
 #toast.on{opacity:1}
+#pcEnter{left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));padding:12px 20px;font-size:16px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+@media (max-width:760px){#pcEnter{bottom:calc(72px + env(safe-area-inset-bottom,0px))}}
 #joy{position:fixed;z-index:6;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:2px solid rgba(255,255,255,.35);background:rgba(10,25,16,.25);pointer-events:none}
 #knob{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(240,169,27,.85)}
 /* cinematic film: letterbox and lower-third captions */
@@ -229,6 +232,7 @@ canvas#scene.over-plot{cursor:pointer}
 </div>
 <div id="keys" class="hud panel" hidden></div>
 <div id="toast" class="hud panel" role="status"></div>
+<button id="pcEnter" class="hud btn btn-primary" type="button" hidden>🏏 Play cricket in the park</button>
 <div id="joy" hidden><div id="knob"></div></div>
 <div id="start">
   <div class="start-card">
@@ -242,6 +246,7 @@ canvas#scene.over-plot{cursor:pointer}
       <button class="btn btn-primary" id="enterCine" disabled>Loading the site…</button>
       <button class="btn btn-ghost" id="enterWalk" disabled>Walk in from the main gate</button>
       <button class="btn btn-ghost" id="enterPlan" disabled>See the plan from above</button>
+      <button class="btn btn-ghost" id="enterCricket" disabled>Play cricket in the park</button>
     </div>
     <p id="gpuWarn" class="gpu-warn" hidden><b>Your browser is drawing 3D without the graphics card</b>, so this page is running in a reduced mode to avoid slowing your computer. To fix it in Chrome: Settings → System → turn on “Use graphics acceleration when available”, then close every Chrome window and reopen it.</p>
     <button class="btn btn-ghost" id="loadAnyway" type="button" hidden style="margin-top:10px">Load anyway (very slow)</button>

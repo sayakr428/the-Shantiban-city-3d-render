@@ -5,8 +5,9 @@
    ===================================================================== */
 prog(.56,'Growing trees and grass…');await tick();
 const WIND_GLSL=`uniform float uTime,uWindStr;uniform vec2 uWind;uniform sampler2D uGust;`;
-function windify(mat,{amp=1,flutter=0,height=30,key=''}={}){
+function windify(mat,{amp=1,flutter=0,height=30,key='',see=false}={}){
   mat.onBeforeCompile=sh=>{
+    if(see){sh.uniforms.uSee=G.uSee;sh.uniforms.uFocus=G.uFocus;sh.uniforms.uSeeR=G.uSeeR;}
     sh.uniforms.uTime=G.uTime;sh.uniforms.uWind=G.uWind;sh.uniforms.uWindStr=G.uWindStr;sh.uniforms.uGust=G.uGust;
     sh.vertexShader=WIND_GLSL+'\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
     {
@@ -28,13 +29,32 @@ function windify(mat,{amp=1,flutter=0,height=30,key=''}={}){
       ${flutter?`float fl=sin(uTime*(5.5+fract(ph*13.)*3.)+position.x*1.9+position.z*2.3+position.y*1.3)*(.35+g2);
       transformed+=normal*fl*${flutter.toFixed(3)}*uWindStr*min(hN*1.5,1.);`:''}
     }`);
+    if(see){
+      sh.vertexShader='varying vec3 vSeeW;\n'+sh.vertexShader.replace('#include <fog_vertex>',`#include <fog_vertex>
+      {vec4 sw=vec4(transformed,1.);
+      #ifdef USE_INSTANCING
+      sw=instanceMatrix*sw;
+      #endif
+      vSeeW=(modelMatrix*sw).xyz;}`);
+      sh.fragmentShader='uniform float uSee,uSeeR;uniform vec3 uFocus;varying vec3 vSeeW;\n'+sh.fragmentShader.replace('#include <clipping_planes_fragment>',`#include <clipping_planes_fragment>
+      if(uSee>.001){
+        /* trees between the camera and the play (and any close to the camera) dissolve with an
+           ordered 4x4 dither, so the cut-out has no hard edge and needs no transparency sorting */
+        vec3 ab=uFocus-cameraPosition;float t=clamp(dot(vSeeW-cameraPosition,ab)/dot(ab,ab),0.,1.);
+        float d=length(vSeeW-(cameraPosition+ab*t)),R=uSeeR*(.45+.55*t);
+        float fade=(1.-smoothstep(R*.55,R,d))*(1.-smoothstep(.9,1.,t));
+        fade=max(fade,1.-smoothstep(28.,46.,length(vSeeW-cameraPosition)));
+        fade*=uSee;
+        float ign=fract(52.9829189*fract(dot(floor(gl_FragCoord.xy),vec2(.06711056,.00583715))));
+        if(fade>ign)discard;}`);
+    }
     if(mat.alphaTest>0)sh.fragmentShader=sh.fragmentShader.replace('#include <alphatest_fragment>',`
     #ifdef USE_MAP
     {vec2 tq=vMapUv*512.;float mipL=max(0.,.5*log2(max(dot(dFdx(tq),dFdx(tq)),dot(dFdy(tq),dFdy(tq)))));diffuseColor.a*=1.+mipL*.32;}
     #endif
     #include <alphatest_fragment>`);
   };
-  mat.customProgramCacheKey=()=>'wind'+amp+flutter+height+key;
+  mat.customProgramCacheKey=()=>'wind'+amp+flutter+height+key+(see?'see':'');
   return mat;
 }
 /* leaf textures */
@@ -172,9 +192,9 @@ const TREE_KINDS={};
   };
   for(const k in def){
     const d=def[k];
-    const crownMat=windify(cardMat(d.leaf),{amp:d.amp,flutter:d.flutter,height:d.h,key:k});
+    const crownMat=windify(cardMat(d.leaf),{amp:d.amp,flutter:d.flutter,height:d.h,key:k,see:true});
     const crownDepth=windify(cardDepth(d.leaf),{amp:d.amp,flutter:d.flutter,height:d.h,key:k+'d'});
-    const trunkMat=windify(d.trunkMat.clone(),{amp:d.amp,height:d.h,key:k+'t'});
+    const trunkMat=windify(d.trunkMat.clone(),{amp:d.amp,height:d.h,key:k+'t',see:true});
     const trunkDepth=windify(new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking}),{amp:d.amp,height:d.h,key:k+'td'});
     TREE_KINDS[k]={near:[0,1,2].map(()=>d.make(1)),far:[0,1].map(()=>d.make(0)),crownMat,crownDepth,trunkMat,trunkDepth};
   }
@@ -182,6 +202,27 @@ const TREE_KINDS={};
 const TREE_GREENS=['#ffffff','#e6efd2','#d6e4bf','#f3f6de','#c9d9ae','#e9e1c4'].map(c=>new THREE.Color(c));
 /* hedge shrubs: fresh, lighter leaf greens (a pink or orange tint multiplied into green leaves reads as brown) */
 const FLOWER_TINTS=['#e9f5c8','#f4f9dc','#dcecb4','#eef6cf','#d4e8ad'].map(c=>new THREE.Color(c));
+/* shadow proxies for distant trees: one invisible low-poly canopy blob per tree (radius, canopy centre
+   height, trunk radius in feet). They cast the same dark shadow at a small fraction of the cost of
+   rendering thousands of alpha-tested leaf cards into every shadow cascade. */
+/* layers: 0 everything, 2 near trees with real leaves (seen by the main camera and the nearest cascade),
+   3 tree shadow proxies (seen only by the farther cascades, never drawn on screen) */
+const LAYER_LEAFCAST=2,LAYER_PROXY=3;
+camera.layers.enable(LAYER_LEAFCAST);
+csm.lights.forEach((l,i)=>{l.shadow.camera.layers.set(0);l.shadow.camera.layers.enable(i===0?LAYER_LEAFCAST:LAYER_PROXY);});
+const PROXY={mango:[15,24,1],shrubby:[10,15,.7],coco:[11,42,.6],areca:[8,36,.4],banana:[6,8,.5]};
+const PROXIES=[];
+function plantProxies(){
+  if(!PROXIES.length)return;
+  const crownG=new THREE.IcosahedronGeometry(1,1),trunkG=new THREE.CylinderGeometry(1,1,1,5);
+  const m=new THREE.MeshBasicMaterial();
+  const crowns=new THREE.InstancedMesh(crownG,m,PROXIES.length),trunks=new THREE.InstancedMesh(trunkG,m,PROXIES.length),o=new THREE.Object3D();
+  PROXIES.forEach(([x,z,r,cy,tr],i)=>{
+    o.position.set(x,cy,z);o.rotation.set(0,0,0);o.scale.set(r,r*.8,r);o.updateMatrix();crowns.setMatrixAt(i,o.matrix);
+    o.position.set(x,cy/2,z);o.scale.set(tr,cy,tr);o.updateMatrix();trunks.setMatrixAt(i,o.matrix);});
+  for(const im of[crowns,trunks]){im.castShadow=true;im.receiveShadow=false;im.layers.set(LAYER_PROXY);im.computeBoundingSphere();scene.add(im);}
+  PROXIES.length=0;
+}
 function plantTrees(list){
   const bins={},o=new THREE.Object3D();
   list.forEach(t=>{
@@ -196,18 +237,32 @@ function plantTrees(list){
       crown.setMatrixAt(i,o.matrix);trunk.setMatrixAt(i,o.matrix);
       crown.setColorAt(i,t.flower?FLOWER_TINTS[i%FLOWER_TINTS.length]:TREE_GREENS[i%TREE_GREENS.length]);});
     crown.instanceColor.needsUpdate=true;
+    /* near trees cast from their real leaves; distant trees cast from a cheap proxy (below) */
+    /* near trees cast from their real leaves, but only into the nearest cascade (layer 2); every tree also
+       gets a cheap proxy (layer 3) that the farther cascades use instead */
     const cast=lod==='n';
+    L.forEach(t=>{const P=PROXY[k]||PROXY.mango,sc=t.s||1;PROXIES.push([t.x,t.z,P[0]*sc,P[1]*sc,P[2]*sc]);});
     crown.castShadow=trunk.castShadow=cast;crown.receiveShadow=trunk.receiveShadow=true;
+    if(cast){crown.layers.set(LAYER_LEAFCAST);trunk.layers.set(LAYER_LEAFCAST);}
     crown.customDepthMaterial=K.crownDepth;trunk.customDepthMaterial=K.trunkDepth;
     crown.computeBoundingSphere();trunk.computeBoundingSphere();
     scene.add(crown,trunk);
   }
+  plantProxies();
 }
-/* trees inside the site: the boulevard median palms, the park and flowering shrubs on the boundary */
+/* trees inside the site: palms either side of the main gate drive, flowering shrubs along the boundary wall */
 const SITE_TREES=[];
-for(let z=60;z<SZ1-40;z+=52){if(IROADS.some(r=>r!==BOULEVARD&&(r.x1-r.x0)>(r.z1-r.z0)&&z>r.z0-6&&z<r.z1+6))continue;SITE_TREES.push({t:'areca',x:CX,z,s:.95});}
-for(let x=8;x<SX1-8;x+=rr(20,30))SITE_TREES.push({t:'shrubby',x,z:SZ1-4+rr(-1,1),s:rr(.45,.6),flower:R()<.7});
-for(let z=12;z<ZAM0;z+=rr(22,32)){SITE_TREES.push({t:'shrubby',x:rr(3,6),z,s:rr(.4,.55),flower:R()<.6});SITE_TREES.push({t:'shrubby',x:SX1-rr(3,6),z,s:rr(.4,.55),flower:R()<.6});}
+{
+  const inR=(r,x,z,m=0)=>x>r.x0-m&&x<r.x1+m&&z>r.z0-m&&z<r.z1+m;
+  const free=(x,z)=>inSite(x,z)&&!IROADS.some(r=>inR(r,x,z,1.5))&&!plots.some(p=>x>p.x-1&&x<p.x+p.w+1&&z>p.z-1&&z<p.z+p.d+1)
+    &&![HALL,GYM,SHOPS,XFMR].some(r=>inR(r,x,z,3))&&!inR(PARK,x,z,-6);
+  for(let z=TRUNK.z1-60;z>XROAD.z1+10;z-=34)for(const x of[TRUNK.x0-3.5,TRUNK.x1+3.5])if(free(x,z))SITE_TREES.push({t:'areca',x,z,s:.9});
+  for(let i=0;i<SITE_POLY.length;i++){
+    const[ax,az]=SITE_POLY[i],[bx2,bz2]=SITE_POLY[(i+1)%SITE_POLY.length],L=Math.hypot(bx2-ax,bz2-az);if(L<8)continue;
+    const ux=(bx2-ax)/L,uz=(bz2-az)/L;
+    for(let t=6;t<L-6;t+=rr(18,28))for(const sg of[1,-1]){const x=ax+ux*t-uz*4*sg,z=az+uz*t+ux*4*sg;if(free(x,z)){SITE_TREES.push({t:'shrubby',x,z,s:rr(.4,.55),flower:R()<.65});break;}}
+  }
+}
 plantTrees(TREES.concat(PARK_TREES,SITE_TREES));
 await tick();
 

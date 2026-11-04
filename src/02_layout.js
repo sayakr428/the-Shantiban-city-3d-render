@@ -1,70 +1,79 @@
 /* =====================================================================
-   LAYOUT. 220 plots in five blocks of 44. Each block is two back-to-back
-   rows split by the central boulevard; numbers run clockwise inside a
-   block, so Block A is 1-44, B 45-88, C 89-132, D 133-176, E 177-220.
+   LAYOUT. The site is the surveyed master-plan outline (02_siteplan.js):
+   220 plots of 2.5 katha (36 ft x 50 ft) in five blocks, 23 ft main roads,
+   13 ft bylanes, two gates (Baruipur–Amtala road and the east gate).
    ===================================================================== */
 prog(.26,'Laying out 220 plots…');await tick();
-const PW=36,PD=40,NPR=11,LANE=20,BLVD=30,ROWRD=25;
-const XW0=LANE,XW1=XW0+NPR*PW,XB0=XW1,XB1=XB0+BLVD,XE0=XB1,XE1=XE0+NPR*PW,SX1=XE1+LANE;
-const CX=(XB0+XB1)/2;
-const BLOCKS='ABCDE',ROWZ=[];
-{let z=LANE;for(let k=0;k<5;k++){ROWZ.push(z);z+=2*PD+ROWRD;}}
-const ZAM0=ROWZ[4]+2*PD+ROWRD,SZ1=ZAM0+215;
-const SITE={x0:0,x1:SX1,z0:0,z1:SZ1};
-const SITE_C=new V3((SITE.x0+SITE.x1)/2,0,(SITE.z0+SITE.z1)/2);
-const KATHA=720;
-
-const IROADS=[];
-const addIR=(x0,x1,z0,z1,n)=>{const r={x0,x1,z0,z1,n};IROADS.push(r);return r;};
-const RD0=addIR(0,SX1,0,LANE,'20 ft internal road');
-const RROW=ROWZ.map(z=>addIR(0,SX1,z+2*PD,z+2*PD+ROWRD,'25 ft internal road'));
-addIR(0,LANE,0,ZAM0,'20 ft internal road');
-addIR(XE1,SX1,0,ZAM0,'20 ft internal road');
-const BOULEVARD=addIR(XB0,XB1,0,SZ1,'30 ft central boulevard');
-
-const plots=[];
-for(let k=0;k<5;k++){
-  const base=k*44,z0=ROWZ[k],blk='Block '+BLOCKS[k];
-  const nRoad=k===0?RD0:RROW[k-1],sRoad=RROW[k];
-  const mk=(no,x,z,f,road,i,side)=>plots.push({no,id:'Plot '+no,b:blk,k,x,z,w:PW,d:PD,f,road,
-    corner:(side==='w'&&i===0)||(side==='w'&&i===NPR-1)||(side==='e'&&i===0)||(side==='e'&&i===NPR-1),
-    cornerRoad:side==='w'?(i===0?'the 20 ft side road':'the 30 ft central boulevard'):(i===0?'the 30 ft central boulevard':'the 20 ft side road')});
-  for(let i=0;i<NPR;i++)mk(base+1+i,XW0+i*PW,z0,'n',nRoad,i,'w');
-  for(let i=0;i<NPR;i++)mk(base+12+i,XE0+i*PW,z0,'n',nRoad,i,'e');
-  for(let i=NPR-1;i>=0;i--)mk(base+23+(NPR-1-i),XE0+i*PW,z0+PD,'s',sRoad,i,'e');
-  for(let i=NPR-1;i>=0;i--)mk(base+34+(NPR-1-i),XW0+i*PW,z0+PD,'s',sRoad,i,'w');
+const PLAN=fitPlan();
+const PW=PLAN.PW,PD=PLAN.PD,WMAIN=PLAN.WM,WBY=PLAN.WB,KATHA=720;
+const SITE_POLY=PLAN.POLY;
+const SITE={x0:Math.min(...SITE_POLY.map(p=>p[0])),x1:Math.max(...SITE_POLY.map(p=>p[0])),z0:Math.min(...SITE_POLY.map(p=>p[1])),z1:Math.max(...SITE_POLY.map(p=>p[1]))};
+function inSite(x,z){let c=false;for(let i=0,j=SITE_POLY.length-1;i<SITE_POLY.length;j=i++){const[xi,zi]=SITE_POLY[i],[xj,zj]=SITE_POLY[j];
+  if((zi>z)!==(zj>z)&&x<(xj-xi)*(z-zi)/(zj-zi)+xi)c=!c;}return c;}
+/* internal roads: 23 ft main roads and 13 ft bylanes, all axis-aligned rectangles */
+const IROADS=[...PLAN.roads,...PLAN.lanes];
+const TRUNK=PLAN.roads.find(r=>r.trunk),NROAD=PLAN.roads[1],XROAD=PLAN.roads[2];
+const CX=PLAN.XT;                       /* centre line of the trunk road */
+const SZ1=PLAN.ZG;                      /* the south gate, on the Baruipur–Amtala road */
+const GATES=PLAN.gates;
+/* small exit gates wherever a main road runs into the boundary wall away from the two entry gates */
+const EXITS=[];
+for(const r of PLAN.roads.filter(r=>r.main)){
+  const ew=(r.x1-r.x0)>(r.z1-r.z0),zc=(r.z0+r.z1)/2,xc=(r.x0+r.x1)/2;
+  for(const[x,z,dx,dz]of ew?[[r.x0,zc,-1,0],[r.x1,zc,1,0]]:[[xc,r.z0,0,-1],[xc,r.z1,0,1]]){
+    if(inSite(x+dx*1.5,z+dz*1.5))continue;
+    if(GATES.some(g=>Math.hypot(g.x-x,g.z-z)<30))continue;
+    EXITS.push({x,z,ry:dx>0?Math.PI/2:dx<0?-Math.PI/2:dz>0?0:Math.PI,n:'Exit gate'});
+  }
 }
-plots.sort((a,b)=>a.no-b.no);
+const BLOCKS='ABCDE';
+/* the site centre for camera framing: middle of the plots */
+const SITE_C=new V3((Math.min(...PLAN.plots.map(p=>p.x))+Math.max(...PLAN.plots.map(p=>p.x+p.w)))/2,0,(Math.min(...PLAN.plots.map(p=>p.z))+Math.max(...PLAN.plots.map(p=>p.z+p.d)))/2);
+
+const plots=PLAN.plots.map(p=>{
+  const face=p.f==='n'?p.z:p.z+p.d;
+  const road=IROADS.find(r=>Math.abs((p.f==='n'?r.z1:r.z0)-face)<1&&r.x0<p.x+p.w-1&&r.x1>p.x+1)||{n:'13 ft bylane'};
+  const side=IROADS.find(r=>(Math.abs(r.x1-p.x)<1.5||Math.abs(r.x0-(p.x+p.w))<1.5)&&r.z0<p.z+p.d-1&&r.z1>p.z+1);
+  return{no:p.no,id:'Plot '+p.no,b:'Block '+p.block,k:BLOCKS.indexOf(p.block),x:p.x,z:p.z,w:p.w,d:p.d,f:p.f,road,
+    corner:!!side,cornerRoad:side?side.n.replace(/\s*\(.*\)$/,''):''};
+});
 { /* the numbering must be exactly 1..220 with no gaps or repeats */
   const ok=plots.length===220&&plots.every((p,i)=>p.no===i+1);
   if(!ok)throw new Error('Plot numbering check failed');
 }
 plots.forEach(p=>{p.sqft=p.w*p.d;p.katha=p.sqft/KATHA;});
+const POCKETS=PLAN.greens;
 
-/* community facilities inside the gate */
-const PARK={x0:20,x1:404,z0:562,z1:744};
-const SHOPS={x0:452,x1:512,z0:556,z1:746};
-const HALL={x0:566,x1:772,z0:568,z1:686};
-const PARKING={x0:566,x1:842,z0:704,z1:748};
-const XFMR={x0:796,x1:846,z0:578,z1:634};
+/* community facilities */
+const Zf=PLAN.zones;
+const PARK=Zf.park,PLAY=Zf.play,SHOPS=Zf.shops,GREEN=Zf.green;
+const HALL={x0:Zf.hall.x0,x1:Zf.hall.x1-58,z0:Zf.hall.z0,z1:Zf.hall.z1};
+const GYM={x0:Zf.hall.x1-54,x1:Zf.hall.x1,z0:Zf.hall.z0,z1:Zf.hall.z1};
+const XFMR={x0:GREEN.x0+16,x1:GREEN.x0+64,z0:GREEN.z1-52,z1:GREEN.z1-6};
+const PARKING={x0:Zf.hall.x0,x1:Zf.hall.x1,z0:Zf.hall.z1,z1:Zf.hall.z1};   /* none: kept so older checks stay harmless */
 const GATE={x:CX,z:SZ1};
+/* the cricket field sits in the park, pitch running north–south */
+CRK.center.set((PARK.x0+PARK.x1)/2,0,PARK.z1-2.25-16.6*3.28084);   /* the game's back hedge is the park's south hedge */
 
-/* outer roads: the site has road access on three sides (south, west, east) */
-const MAIN_Z=806,MAIN_W=34,WEST_X=-58,EAST_X=917,KOYAL_Z=5200;
+/* outer roads: the Baruipur–Amtala road along the south, an approach road from the east gate,
+   and village roads to the west and east (three-way road connectivity) */
+const MAIN_W=34,MAIN_Z=SZ1+10+MAIN_W/2;
+const EG=GATES[1],EAST_X=EG.x+190,WEST_X=SITE.x0-70;
 const OROADS=[
-  {n:'Main road',ax:-14000,az:MAIN_Z,bx:14000,bz:MAIN_Z,w:MAIN_W,big:1},
-  {n:'Road along the west side',ax:WEST_X,az:-14000,bx:WEST_X,bz:MAIN_Z-MAIN_W/2,w:24},
-  {n:'Road along the east side',ax:EAST_X,az:-14000,bx:EAST_X,bz:14000,w:24},
-  {n:'Koyal More crossing road',ax:-6500,az:KOYAL_Z,bx:9000,bz:KOYAL_Z,w:24}
+  {n:'Baruipur–Amtala road',ax:-14000,az:MAIN_Z,bx:14000,bz:MAIN_Z,w:MAIN_W,big:1},
+  {n:'Road to the east gate',ax:EG.x-2,az:EG.z,bx:EAST_X,bz:EG.z,w:WMAIN},
+  {n:'Village road (west)',ax:WEST_X,az:-14000,bx:WEST_X,bz:MAIN_Z-MAIN_W/2,w:24},
+  {n:'Village road (east)',ax:EAST_X,az:-14000,bx:EAST_X,bz:14000,w:24}
 ];
-const GATELINK={x0:XB0,x1:XB1,z0:SZ1,z1:MAIN_Z-MAIN_W/2};
+const GATELINK={x0:CX-WMAIN/2,x1:CX+WMAIN/2,z0:SZ1,z1:MAIN_Z-MAIN_W/2};
 
 /* nearby places, at the approximate distances in the project information */
-const MARKET={x0:1860,x1:2330,z0:836,z1:1060};
-const BUS={x0:-4700,x1:-4100,z0:836,z1:1120};
-const SCHOOL={x0:-470,x1:-82,z0:-4720,z1:-4240};
-const HOSPITAL={x0:941,x1:1400,z0:-6320,z1:-5820};
-const KOYAL={x:EAST_X,z:KOYAL_Z};
+const MARKET={x0:SITE_C.x+1350,x1:SITE_C.x+1820,z0:MAIN_Z+30,z1:MAIN_Z+254};
+const BUS={x0:SITE_C.x-5230,x1:SITE_C.x-4630,z0:MAIN_Z+30,z1:MAIN_Z+314};
+const SCHOOL={x0:WEST_X-412,x1:WEST_X-24,z0:SITE_C.z-5100,z1:SITE_C.z-4620};
+const HOSPITAL={x0:EAST_X+24,x1:EAST_X+483,z0:SITE_C.z-6700,z1:SITE_C.z-6200};
+const KOYAL_Z=SITE_C.z+4820,KOYAL={x:EAST_X,z:KOYAL_Z};
+OROADS.push({n:'Koyal More crossing road',ax:-6500,az:KOYAL_Z,bx:9000,bz:KOYAL_Z,w:24});
 const rc=r=>new V3((r.x0+r.x1)/2,0,(r.z0+r.z1)/2);
 const AMEN=[
   {key:'market',n:'Market',bn:'বাজার',d:'about 500 m',p:rc(MARKET),near:1},
@@ -79,11 +88,13 @@ const FAR=[
   ['Baruipur Bypass','7 km'],['Garia Metro','14 km'],['Joka Metro','15 km'],['Kolkata city','20 km']
 ];
 const INSIDE=[
-  {key:'gate',n:'Main gate and security',p:new V3(CX,0,SZ1)},
-  {key:'boulevard',n:'30 ft central boulevard',p:new V3(CX,0,300)},
-  {key:'park',n:'Park',p:rc(PARK)},
+  {key:'gate',n:'Main gate (Baruipur–Amtala road)',p:new V3(CX,0,SZ1)},
+  {key:'egate',n:'East gate',p:new V3(EG.x,0,EG.z)},
+  {key:'park',n:'Park and cricket ground',p:rc(PARK)},
   {key:'hall',n:'Community hall',p:rc(HALL)},
+  {key:'gym',n:'Gym',p:rc(GYM)},
   {key:'shops',n:'Shops for daily needs',p:rc(SHOPS)},
+  {key:'play',n:'Children’s garden',p:rc(PLAY)},
   {key:'power',n:'Electricity transformer',p:rc(XFMR)}
 ];
 
@@ -101,7 +112,12 @@ function occFree(x0,z0,x1,z1){
 }
 const occAt=(x,z)=>OCC[oi(z)*ON+oi(x)];
 const O_ROAD=1,O_HOUSE=2,O_WATER=3,O_RES=4,O_TREE=5;
-occMark(SITE.x0-55,SITE.z0-70,SITE.x1+40,SITE.z1+10,O_RES);
+/* reserve the site's real outline plus a 45 ft verge, so the village fills in around its irregular shape */
+for(let z=SITE.z0-60;z<=SITE.z1+60;z+=OC)for(let x=SITE.x0-60;x<=SITE.x1+60;x+=OC){
+  let hit=inSite(x,z);
+  for(let k=0;k<8&&!hit;k++){const a=k*Math.PI/4;hit=inSite(x+Math.cos(a)*45,z+Math.sin(a)*45);}
+  if(hit)occMark(x,z,x+OC-1,z+OC-1,O_RES);
+}
 OROADS.forEach(r=>{const h=r.w/2+6;occMark(Math.min(r.ax,r.bx)-h,Math.min(r.az,r.bz)-h,Math.max(r.ax,r.bx)+h,Math.max(r.az,r.bz)+h,O_ROAD);});
 [MARKET,BUS,SCHOOL,HOSPITAL].forEach(r=>occMark(r.x0-10,r.z0-10,r.x1+10,r.z1+10,O_RES));
 occMark(KOYAL.x-70,KOYAL.z-70,KOYAL.x+70,KOYAL.z+70,O_RES);
@@ -143,26 +159,31 @@ function addPond(x,z,rx,rz){
 }
 /* lighter tiers build less of the far town: frontage reach and density scale with Q.world */
 const WR=Math.round(2500+10000*Q.world);
+/* village clusters laid out around the site and its roads (MZ = first row south of the main road) */
+const MZ=MAIN_Z+MAIN_W/2+45,EX=EAST_X+40,WX=WEST_X-50;
 const CLUSTERS_ALL=[
-  {x0:-2900,x1:880,z0:850,z1:2600,lane:150,ponds:12},
-  {x0:960,x1:1840,z0:850,z1:2800,lane:140,ponds:4},
-  {x0:2360,x1:3700,z0:850,z1:2700,lane:155,ponds:6},
-  {x0:-40,x1:880,z0:-1500,z1:-80,lane:150,ponds:4},
-  {x0:960,x1:3600,z0:-2700,z1:760,lane:150,ponds:10},
-  {x0:-3300,x1:-110,z0:-2900,z1:760,lane:150,ponds:12},
-  {x0:-1900,x1:-110,z0:-5600,z1:-3500,lane:170,ponds:5},
-  {x0:960,x1:2600,z0:-7200,z1:-5100,lane:170,ponds:5},
-  {x0:-700,x1:2600,z0:4700,z1:5800,lane:160,ponds:4},
-  {x0:-5600,x1:-3000,z0:850,z1:2000,lane:170,ponds:4},
-  {x0:300,x1:880,z0:2700,z1:4650,lane:190,ponds:3},
-  {x0:960,x1:1600,z0:2850,z1:4650,lane:190,ponds:3}
+  {x0:-2900,x1:EAST_X-60,z0:MZ,z1:MZ+1750,lane:150,ponds:12},
+  {x0:EX,x1:EX+880,z0:MZ,z1:MZ+1950,lane:140,ponds:4},
+  {x0:EX+1400,x1:EX+2740,z0:MZ,z1:MZ+1850,lane:155,ponds:6},
+  {x0:WEST_X+40,x1:EAST_X-60,z0:-1500,z1:SITE.z0-110,lane:150,ponds:4},
+  {x0:EX,x1:EX+2640,z0:-2700,z1:MAIN_Z-MAIN_W/2-45,lane:150,ponds:10},
+  {x0:-3300,x1:WX,z0:-2900,z1:MAIN_Z-MAIN_W/2-45,lane:150,ponds:12},
+  {x0:-1900,x1:WX,z0:-5600,z1:-3500,lane:170,ponds:5},
+  {x0:EX,x1:EX+1640,z0:-7200,z1:-5100,lane:170,ponds:5},
+  {x0:-700,x1:EX+1640,z0:KOYAL_Z-500,z1:KOYAL_Z+600,lane:160,ponds:4},
+  {x0:-5600,x1:-3000,z0:MZ,z1:MZ+1150,lane:170,ponds:4},
+  {x0:300,x1:EAST_X-60,z0:MZ+1850,z1:KOYAL_Z-550,lane:190,ponds:3},
+  {x0:EX,x1:EX+640,z0:MZ+2000,z1:KOYAL_Z-550,lane:190,ponds:3},
+  /* pockets between the irregular site outline and the roads: homes and trees, no through lanes */
+  {x0:WEST_X+20,x1:EAST_X-20,z0:SITE.z0-100,z1:MAIN_Z-MAIN_W/2-14,lane:0,ponds:2,pocket:1}
 ];
 /* main-road frontage: shops below, homes above, the way the Baruipur roads look */
-const CLUSTERS=CLUSTERS_ALL.filter(c=>Math.hypot((c.x0+c.x1)/2-431,(c.z0+c.z1)/2-380)<1800+8000*Q.world);
+const CLUSTERS=CLUSTERS_ALL.filter(c=>c.pocket||Math.hypot((c.x0+c.x1)/2-SITE_C.x,(c.z0+c.z1)/2-SITE_C.z)<1800+8000*Q.world);
 for(const side of[1,-1]){
   frontage(-WR,MAIN_Z,WR,MAIN_Z,MAIN_W,side,{main:1,smin:4,smax:9,gmin:1,gmax:6,skip:.03});
 }
 frontage(WEST_X,-WR,WEST_X,MAIN_Z-60,24,1,{main:1,smin:4,smax:10});
+frontage(EG.x+30,EG.z,EAST_X-20,EG.z,WMAIN,1,{main:1,smin:4,smax:9});frontage(EG.x+30,EG.z,EAST_X-20,EG.z,WMAIN,-1,{main:1,smin:4,smax:9});
 frontage(WEST_X,-WR,WEST_X,MAIN_Z-60,24,-1,{main:1,smin:4,smax:10});
 frontage(EAST_X,-WR,EAST_X,WR,24,1,{main:1,smin:4,smax:10});
 frontage(EAST_X,-WR,EAST_X,WR,24,-1,{main:1,smin:4,smax:10});
@@ -170,11 +191,11 @@ frontage(-6000,KOYAL_Z,8500,KOYAL_Z,24,1,{main:1,smin:4,smax:10});
 frontage(-6000,KOYAL_Z,8500,KOYAL_Z,24,-1,{main:1,smin:4,smax:10});
 await tick();
 for(const c of CLUSTERS){
-  for(let z=c.z0+60;z<c.z1-50;z+=c.lane*rr(.85,1.15)){
+  for(let z=c.z0+60;c.lane&&z<c.z1-50;z+=c.lane*rr(.85,1.15)){
     LANES.push({x0:c.x0,x1:c.x1,z0:z,z1:z+12});
     occMark(c.x0,z,c.x1,z+12,O_ROAD);
   }
-  for(let x=c.x0+rr(120,300);x<c.x1-80;x+=rr(380,520)){
+  for(let x=c.x0+rr(120,300);c.lane&&x<c.x1-80;x+=rr(380,520)){
     LANES.push({x0:x,x1:x+12,z0:c.z0+40,z1:c.z1-30});
     occMark(x,c.z0+40,x+12,c.z1-30,O_ROAD);
   }
@@ -208,7 +229,7 @@ for(const c of CLUSTERS){
 for(let i=0;i<70*Q.world;i++){const rx=rr(40,110),rz=rr(30,80);addPond(rr(-11000,11000),rr(-11000,11000),rx,rz);}
 for(let i=0;i<900*Q.world;i++){
   const x=rr(-12000,12000),z=rr(-12000,12000);
-  if(Math.abs(x-431)<1400&&Math.abs(z-380)<1300)continue;
+  if(Math.abs(x-SITE_C.x)<1400&&Math.abs(z-SITE_C.z)<1300)continue;
   if(!occFree(x-40,z-40,x+40,z+40))continue;
   const n=1+(R()*4|0);
   for(let k=0;k<n;k++){const hx=x+rr(-30,30),hz=z+rr(-30,30),w=rr(16,26),d=rr(18,28);
@@ -218,12 +239,19 @@ for(let i=0;i<900*Q.world;i++){
 }
 for(let i=0;i<140*Q.world;i++){ /* tree lines along field bunds */
   const x=rr(-11000,11000),z=rr(-11000,11000),ang=R()<.5?0:Math.PI/2,L=rr(150,600);
-  if(Math.abs(x-431)<1000&&Math.abs(z-380)<900)continue;
+  if(Math.abs(x-SITE_C.x)<1000&&Math.abs(z-SITE_C.z)<900)continue;
   for(let s=0;s<L;s+=rr(14,30)){const tx=x+Math.cos(ang)*s,tz=z+Math.sin(ang)*s;if(!occAt(tx,tz))TREES.push({t:R()<.7?'coco':'areca',x:tx,z:tz,s:rr(.85,1.2)});}
 }
 /* verges around the site: a green buffer between the wall and the outer roads */
-for(let z=-50;z<SZ1;z+=rr(18,30)){TREES.push({t:R()<.6?'coco':'mango',x:rr(-36,-14),z,s:rr(.9,1.15)});TREES.push({t:R()<.6?'coco':'mango',x:rr(SX1+12,SX1+30),z,s:rr(.9,1.15)});}
-for(let x=-30;x<SX1+30;x+=rr(18,30))TREES.push({t:R()<.5?'coco':'mango',x,z:rr(-55,-15),s:rr(.9,1.2)});
-for(let x=-30;x<SX1+20;x+=rr(22,34)){if(Math.abs(x-CX)<40)continue;TREES.push({t:'areca',x,z:SZ1+rr(7,13),s:rr(.9,1.1)});}
+/* a ring of coconut and mango trees just outside the boundary wall, following the real outline */
+for(let i=0;i<SITE_POLY.length;i++){
+  const[ax,az]=SITE_POLY[i],[bx2,bz2]=SITE_POLY[(i+1)%SITE_POLY.length],L=Math.hypot(bx2-ax,bz2-az);
+  const ux=(bx2-ax)/L,uz=(bz2-az)/L;let nx=-uz,nz=ux;
+  const mx=(ax+bx2)/2,mz=(az+bz2)/2;if(inSite(mx+nx*3,mz+nz*3)){nx=-nx;nz=-nz;}
+  for(let s=8;s<L-8;s+=rr(20,32)){const off=rr(14,30),x=ax+ux*s+nx*off,z=az+uz*s+nz*off;
+    if(inSite(x,z)||OROADS.some(r=>Math.abs(r.az-r.bz)<1?Math.abs(z-r.az)<r.w/2+6&&x>Math.min(r.ax,r.bx)-6&&x<Math.max(r.ax,r.bx)+6:Math.abs(x-r.ax)<r.w/2+6&&z>Math.min(r.az,r.bz)-6&&z<Math.max(r.az,r.bz)+6))continue;
+    if(GATES.some(g=>Math.hypot(x-g.x,z-g.z)<45))continue;
+    TREES.push({t:R()<.55?'coco':'mango',x,z,s:rr(.9,1.15)});}
+}
 HOUSES.forEach(h=>{if(R()<.05)HAY.push({x:h.x+rr(-30,30),z:h.z+rr(-30,30),s:rr(.7,1.1)});});
 prog(.34,`Town laid out: ${HOUSES.length.toLocaleString('en-IN')} buildings…`);await tick();

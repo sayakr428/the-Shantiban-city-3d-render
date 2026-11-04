@@ -277,10 +277,43 @@ function renderSky(){
 
 /* ---------------- lights ---------------- */
 const hemi=new THREE.HemisphereLight(0xbfd4e6,0x3a4528,.3);scene.add(hemi);
-const sun=new THREE.DirectionalLight(0xffffff,8);
-sun.castShadow=true;sun.shadow.mapSize.set(Q.shadow,Q.shadow);sun.shadow.bias=-.00025;sun.shadow.normalBias=.35;
-sun.shadow.camera.near=10;sun.shadow.camera.far=4000;scene.add(sun,sun.target);
+/* the sun: cascaded shadow maps (no fade) cover the whole visible town, so a shadow is equally
+   dark at every distance; only its sharpness falls off. `sun` just carries colour and intensity. */
+const sun=new THREE.DirectionalLight(0xffffff,8);sun.visible=false;
 const sunVec=new V3(0,1,0);
+/* cascade ends in feet: most resolution where houses and trees are large on screen */
+const CSM_SPLITS=Q.csc>=4?[400,1400,4500,16000]:Q.csc===3?[500,2200,16000]:[2500,16000];
+const csm=new CSM({camera,parent:scene,cascades:Q.csc,maxFar:16000,mode:'custom',
+  customSplitsCallback:(n,near,far,out)=>{CSM_SPLITS.forEach(v=>out.push(Math.min(1,v/far)));},shadowMapSize:Q.shadow,
+  lightDirection:new V3(0,-1,0),lightIntensity:8,lightNear:1,lightFar:40000,lightMargin:1600,shadowBias:-.00003});
+csm.fade=false;
+let shadowDirty=true;
+/* staggered cascade updates: while the camera moves, cascade i re-renders every 2^i x shadowEvery frames
+   (near cascades often, far ones rarely, their view barely changes); when the sun or the frustum changes,
+   all cascades re-render at once; when nothing changes, nothing re-renders */
+const CASC_INT=csm.lights.map((l,i)=>Math.pow(2,i)*Q.shadowEvery);
+const cascDirty=csm.lights.map(()=>true),cascLast=csm.lights.map(()=>-1e9);
+csm.lights.forEach(l=>{l.shadow.autoUpdate=false;l.shadow.needsUpdate=true;});
+function scheduleShadows(frameN,moved){
+  if(moved||shadowDirty)cascDirty.fill(true);
+  csm.lights.forEach((l,i)=>{if(cascDirty[i]&&(shadowDirty||frameN-cascLast[i]>=CASC_INT[i])){l.shadow.needsUpdate=true;cascDirty[i]=false;cascLast[i]=frameN;}});
+  shadowDirty=false;
+}
+/* bias per cascade: a small normal offset (half a texel, never more than 1.5 ft, or ground shadows lift
+   above the houses that cast them) plus a constant depth bias of about 2 ft over the 40,000 ft light range */
+function tuneCascades(){csm.lights.forEach(l=>{const c=l.shadow.camera,tex=(c.right-c.left)/csm.shadowMapSize;l.shadow.normalBias=clamp(tex*.5,.15,1.5);l.shadow.bias=-.00005;});}
+function csmFrustums(){csm.updateFrustums();tuneCascades();shadowDirty=true;}
+tuneCascades();
+/* register a lit material with the cascades, keeping any shader edits it already has */
+const CSM_MATS=new Set();
+function csmSetup(m){
+  if(!m||m.__csm||!(m.isMeshStandardMaterial||m.isMeshLambertMaterial||m.isMeshPhongMaterial))return;
+  m.__csm=true;const prev=m.onBeforeCompile;
+  csm.setupMaterial(m);const cf=m.onBeforeCompile;
+  m.onBeforeCompile=function(sh,r){if(prev)prev.call(this,sh,r);cf.call(this,sh,r);};
+  m.needsUpdate=true;CSM_MATS.add(m);
+}
+function csmSweep(root){(root||scene).traverse(o=>{if(o.isMesh)(Array.isArray(o.material)?o.material:[o.material]).forEach(csmSetup);});}
 
 const pmrem=new THREE.PMREMGenerator(renderer);
 let envRT=null;
@@ -325,6 +358,7 @@ const SUNRISE=crossing(3,10,true),SUNSET=crossing(14,21,false);
 const PRESETS={dawn:SUNRISE+.25,morning:SUNRISE+2.6,noon:12.1,golden:SUNSET-.38,night:SUNSET+2.4};
 const TIME_HOOKS=[];
 let lampsOn=0,curHour=8;
+const EXPO={target:.8};
 function fmtTime(h){const hh=Math.floor(h),mm=Math.round((h-hh)*60)%60;return `${((hh+11)%12)+1}:${String(mm).padStart(2,'0')} ${hh>=12?'pm':'am'}`;}
 function setTime(h){
   curHour=h;
@@ -340,8 +374,9 @@ function setTime(h){
     sun.color.setRGB(1,.96,.9).lerp(new THREE.Color(1,.5,.22),Math.pow(clamp(1-(e-1)/14,0,1),1.4));sun.intensity=9.5*Math.pow(k,1.2);
     sunVec.copy(s.dir);if(sunVec.y<.04)sunVec.y=.04;sunVec.normalize();}
   else{sun.color.setRGB(.6,.7,.95);sun.intensity=.55*night+.08;sunVec.copy(U.uMoon.value);}
+  csm.lights.forEach(l=>{l.intensity=sun.intensity;l.color.copy(sun.color);});csm.lightDirection.copy(sunVec).negate();shadowDirty=true;
   hemi.color.setRGB(.55,.65,.85);hemi.groundColor.setRGB(.2,.22,.15);hemi.intensity=(.25+.5*day)*(1-night*.7);
-  renderer.toneMappingExposure=.62+.5*night+.18*(1-day)*(1-night);
+  EXPO.target=.62+.5*night+.18*(1-day)*(1-night);
   envGround.color.setRGB(.05+.06*day,.06+.07*day,.04+.04*day);
   lampsOn=clamp((6-e)/6,0,1);
   SIGNS.forEach(m=>m.emissiveIntensity=lampsOn*.55);

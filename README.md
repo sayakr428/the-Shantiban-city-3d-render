@@ -4,23 +4,28 @@ A realistic, browser-based 3D walkthrough of **Shantiban City**, a residential p
 MRITYIKA REALTERS OPC PRIVATE LIMITED in Tapna, Baruipur (South 24 Parganas, West Bengal).
 It runs in any modern browser on desktop and phone, with no app or plugin to install.
 
-**Live site:** https://shantiban-city-3d.edgeone.cool
+**Live site:** https://walkthrough.mrityikaestates.com (Hostinger), mirrored at
+https://shantiban-city-3d.edgeone.cool (EdgeOne Makers).
 
 Built with [three.js](https://threejs.org/) r160 and bundled by esbuild into a single static site.
-It's hosted on [EdgeOne Makers](https://edgeone.ai/).
 
 ---
 
 ## What's in it
 
 **The site**
-- **220 plots**, numbered 1–220 in five blocks of 44: A 1–44, B 45–88, C 89–132, D 133–176, E 177–220.
-  Each plot is 36′ × 40′ (about 2 katha) and carries its number painted on the ground, a signboard
-  and corner pillars. The build fails if the numbering isn't exactly 1–220 with no gaps or repeats.
-- **Inside the gate:** a gated entrance with security cabins, a boom barrier and the logo on the
-  gate sign; a 30 ft central boulevard; 20–25 ft internal roads with covered concrete drains,
-  street lights and electric lines; a park with a walking track, gazebo and children's corner; a
-  community hall, six shops and an electricity transformer.
+- **The real site outline:** the boundary is traced from the master plan
+  (`reference/master-plan.png`) and keeps its irregular shape. The plan is scaled so that it holds
+  exactly 220 plots; preview the layout with `node tools/plan-preview.mjs`.
+- **220 plots of 2.5 katha** (36′ × 50′, 1,800 sq ft), numbered 1–220 across Blocks A–E. Each plot
+  carries its number painted on the ground, a signboard and corner pillars. The build fails if the
+  numbering isn't exactly 1–220 with no gaps or repeats.
+- **Roads:** 23 ft main roads and 13 ft bylanes, with street lights.
+- **Gates:** the main gate on the Baruipur–Amtala road and an east gate, each with a security cabin,
+  boom barrier and the logo on the gate sign; small exit gates where other main roads meet the wall.
+- **Inside the gate:** a community hall, a gym, shops for daily needs, a park with a cricket ground,
+  a children's garden with a walking track, gazebo and play corner, and a garden with the
+  electricity transformer.
 - **Nearby places** at the approximate distances given in the project information: market (about
   500 m), school and bus terminus (about 1.5 km each), hospital (about 2 km) and Koyal More (about
   1.5 km). Farther places (Baruipur, Garia and Joka Metro, Kolkata and others) are listed on a
@@ -48,6 +53,25 @@ It's hosted on [EdgeOne Makers](https://edgeone.ai/).
 - **Safe mode:** if the browser is drawing without the graphics card, the page pauses with
   instructions instead of freezing the computer.
 
+**Park cricket**
+- A two-over, three-wicket street-cricket game on the park lawn. Open it
+  with **Play cricket in the park** (on the start screen, in the Nearby panel, or as a button when
+  you walk into the park).
+- Modes: bat against Bablu, bowl at Bablu, or two players on one keyboard or phone.
+- Batting: timing decides the shot (early goes leg side, late goes off side; perfect, early, late,
+  edged), with aim and loft, running between the wickets, and run-outs.
+- Bowling: aim the target, choose pace, medium, slower ball, off spin or leg spin, then lock the
+  run-up meter in the green. The AI batter reads line, length, speed and spin.
+- Fielders work out where they can intercept the ball, take catches (and sometimes drop them),
+  misfield, and throw to the right end.
+- Park rules: past the rope is 4 along the grass or 6 in the air; over the hedge on the full is out;
+  a catch off a tree is still out. Trees and benches are solid, so the ball bounces off them.
+- Three camera views, time of day, floodlights at night, sound, pixel mode, pause, and a
+  win/loss record saved in the browser. Phones get a thumb stick and a big action button in landscape.
+- The game logic (`src/10_cricket.js`) follows
+  [MuhammadaliMS/galli-cricket](https://github.com/MuhammadaliMS/galli-cricket): the delivery
+  and shot maths, AI batter, fielding and match flow, adapted to the park ground.
+
 > The plot layout is illustrative. Please confirm the final plot sizes and positions with the
 > project office. Buildings outside the boundary are illustrative, and all distances are approximate.
 
@@ -60,17 +84,21 @@ src/
   template.html       page shell, HUD, styles
   00_core.js          renderer, quality tiers, asset loading, materials, sign drawing
   01_sky.js           atmosphere, volumetric clouds, sun position, time of day
-  02_layout.js        the 220-plot layout and the procedural town
+  02_siteplan.js      the site outline, roads and 220-plot layout fitted to the master plan
+  02_layout.js        facilities, gates, outer roads, nearby places and the procedural town
   03_ground.js        land-use ground shader, roads, drains, street lights, lamp light map
-  04_site.js          plots, numbers, boundary wall, gate, park, hall, shops, transformer
+  04_site.js          plots, numbers, boundary wall, gates, park, hall, gym, shops, transformer
   05_vegetation.js    trees, palms, banana plants, hay, wind-blown grass
   06_town.js          town buildings, ponds, market, school, hospital, bus terminus, Koyal More
   07_life.js          cattle, dogs and birds
   08_villa.js         the sample rooftop-terrace home that can be placed on any plot
   09_ui.js            player and camera modes, plot cards, map, input, render loop
+  10_cricket.js       the park cricket game (field, players, physics, AI, fielding, HUD)
 assets/               optimised models (.glb), textures (.webp) and the logo
 build.mjs             bundles src/ and writes both outputs to dist/
 serve.mjs             minimal static server for testing the web build locally
+tools/plan-preview.mjs  draws the computed site plan to reference/plan-preview.png
+reference/            the master plan the layout is traced from
 ```
 
 The numbered files in `src/` are joined in order into one ES module and then bundled with three.js.
@@ -91,7 +119,7 @@ npm run serve      # serves dist/web at http://localhost:8091/
 
 | Output | Use |
 |---|---|
-| `dist/web/` | The site for static hosting: a small `index.html`, one hashed and minified script, hashed assets and `edgeone.json` cache headers. Phones load half-size textures. |
+| `dist/web/` | The site for static hosting: a small `index.html`, one hashed and minified script, hashed assets, plus cache headers for EdgeOne (`edgeone.json`) and Apache/LiteSpeed hosts such as Hostinger (`.htaccess`). Phones load half-size textures. |
 | `dist/shantiban-city-3d.html` | One self-contained file, about 10 MB, with every asset embedded. Opens by double-clicking, with no server needed. |
 
 `dist/web/` must be served over HTTP; opening its `index.html` straight from disk won't load the
@@ -101,7 +129,10 @@ assets. To write the outputs somewhere other than `dist/`, set `SB_OUT=<folder>`
 
 ## Deploy
 
-The live site is the EdgeOne Makers project `shantiban-city-3d`. With the
+**Hostinger** (walkthrough.mrityikaestates.com): it's a plain PHP/HTML website. Run `npm run build`,
+then upload the contents of `dist/web/` (including `.htaccess`) into the site's `public_html`.
+
+**EdgeOne Makers** (project `shantiban-city-3d`), with the
 [edgeone CLI](https://www.npmjs.com/package/edgeone) installed and signed in:
 
 ```bash
@@ -121,6 +152,7 @@ Any other static host works too: upload the contents of `dist/web/`.
 | Cow, bull and dog models | Quaternius animal pack, via [benjaminpjones/catch-the-animal](https://github.com/benjaminpjones/catch-the-animal) | CC0 (Quaternius) |
 | Stork and parrot models | [three.js examples](https://github.com/mrdoob/three.js/tree/r160/examples/models/gltf) | from the MIT-licensed three.js repository |
 | three.js | [mrdoob/three.js](https://github.com/mrdoob/three.js) | MIT |
+| Park cricket game logic | adapted from [MuhammadaliMS/galli-cricket](https://github.com/MuhammadaliMS/galli-cricket) | no licence published in that repository |
 | Anek Bangla font | [Google Fonts](https://fonts.google.com/specimen/Anek+Bangla) | SIL Open Font License |
 
 The Shantiban City name and logo belong to MRITYIKA REALTERS OPC PRIVATE LIMITED and aren't

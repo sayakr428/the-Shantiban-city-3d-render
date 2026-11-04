@@ -41,16 +41,19 @@ let nearCv=document.createElement('canvas');nearCv.width=nearCv.height=NN;
   g.fillStyle='rgb(245,255,0)';g.fillRect(0,0,NN,NN);
   CLUSTERS.forEach(c=>rect(c,'rgb(170,110,28)',40));
   OROADS.forEach(r=>{g.fillStyle='rgb(120,110,120)';const h=r.w/2+16;g.fillRect(X(Math.min(r.ax,r.bx)-h),Z(Math.min(r.az,r.bz)-h),(Math.abs(r.bx-r.ax)+2*h)*s,(Math.abs(r.bz-r.az)+2*h)*s);});
-  rect({x0:SITE.x0-60,x1:SITE.x1+50,z0:SITE.z0-70,z1:SITE.z1+20},'rgb(215,95,0)');
+  const poly=(pts,c,grow)=>{g.fillStyle=c;g.strokeStyle=c;g.lineJoin='round';g.beginPath();pts.forEach(([x,z],i)=>i?g.lineTo(X(x),Z(z)):g.moveTo(X(x),Z(z)));g.closePath();g.fill();if(grow){g.lineWidth=grow*2*s;g.stroke();}};
+  poly(SITE_POLY,'rgb(215,95,0)',45);
   /* soften only the background layer, then draw the sharp site details on top */
   const soft=softened(nearCv,2);
   if(soft!==nearCv){nearCv=soft;g=nearCv.getContext('2d');}
-  rect(SITE,'rgb(190,40,10)');
+  poly(SITE_POLY,'rgb(190,40,10)');
   plots.forEach(p=>rect({x0:p.x+.5,x1:p.x+p.w-.5,z0:p.z+.5,z1:p.z+p.d-.5},'rgb(90,120,235)'));
-  rect(PARK,'rgb(255,20,0)');
+  rect(PARK,'rgb(255,20,0)');rect(PLAY,'rgb(255,20,0)');rect(GREEN,'rgb(255,30,0)');
+  POCKETS.forEach(p=>rect({x0:p.x,x1:p.x+p.w,z0:p.z,z1:p.z+p.d},'rgb(255,20,0)'));
+  /* walking path round the children's garden */
   g.strokeStyle='rgb(0,0,255)';g.lineWidth=7*s;
-  g.beginPath();g.roundRect(X(PARK.x0+16),Z(PARK.z0+16),(PARK.x1-PARK.x0-32)*s,(PARK.z1-PARK.z0-32)*s,34*s);g.stroke();
-  [SHOPS,HALL,PARKING,XFMR,GATELINK].forEach(r=>rect(r,'rgb(0,0,0)',1));
+  g.beginPath();g.roundRect(X(PLAY.x0+12),Z(PLAY.z0+12),(PLAY.x1-PLAY.x0-24)*s,(PLAY.z1-PLAY.z0-24)*s,26*s);g.stroke();
+  [SHOPS,HALL,GYM,XFMR,GATELINK].forEach(r=>rect(r,'rgb(0,0,0)',1));
   IROADS.forEach(r=>rect(r,'rgb(0,0,0)',2));
   LANES.forEach(r=>rect(r,'rgb(0,0,0)',2));
   OROADS.forEach(r=>{g.fillStyle='rgb(0,0,0)';const h=r.w/2+3;g.fillRect(X(Math.min(r.ax,r.bx)-h),Z(Math.min(r.az,r.bz)-h),(Math.abs(r.bx-r.ax)+2*h)*s,(Math.abs(r.bz-r.az)+2*h)*s);});
@@ -67,6 +70,7 @@ let nearCv=document.createElement('canvas');nearCv.width=nearCv.height=NN;
 const nearTex=new THREE.CanvasTexture(nearCv);nearTex.colorSpace=THREE.NoColorSpace;nearTex.flipY=false;nearTex.minFilter=THREE.LinearMipmapLinearFilter;
 
 const GROUND_U={
+  uHole:{value:new THREE.Vector4(1e9,1e9,-1e9,-1e9)},
   uZone:{value:zoneTex},uNear:{value:nearTex},uZO:{value:ZO},uZS:{value:ZS},
   uNO:{value:new THREE.Vector2(NOX,NOZ)},uNS:{value:NS},
   uGrass:{value:TX.leafy_grass.d},uMud:{value:TX.brown_mud_02.d},uLat:{value:TX.red_laterite_soil_stones.d},uMacro:{value:weatherTex}
@@ -100,9 +104,11 @@ groundMat.onBeforeCompile=sh=>{
     #ifdef USE_NORMALMAP
     vNormalMapUv=vWP.xz/12.;
     #endif`);
-  sh.fragmentShader=`varying vec3 vWP;uniform sampler2D uZone,uNear,uGrass,uMud,uLat,uMacro;uniform float uZO,uZS,uNS;uniform vec2 uNO;\n`+GROUND_FRAG+'\n'+
+  sh.fragmentShader=`uniform vec4 uHole;varying vec3 vWP;uniform sampler2D uZone,uNear,uGrass,uMud,uLat,uMacro;uniform float uZO,uZS,uNS;uniform vec2 uNO;\n`+GROUND_FRAG+'\n'+
     sh.fragmentShader.replace('#include <map_fragment>',`
     vec2 wp=vWP.xz;
+    /* the cricket lawn covers this rectangle; leaving no ground under it removes any depth fight */
+    if(wp.x>uHole.x&&wp.x<uHole.z&&wp.y>uHole.y&&wp.y<uHole.w)discard;
     vec3 zn=texture2D(uZone,(wp-uZO)/uZS).rgb;
     float macro=texture2D(uMacro,wp/3100.).r*.6+texture2D(uMacro,wp/700.+.37).b*.4;
     vec3 grass=mix(texture2D(uGrass,wp/13.).rgb,texture2D(uGrass,wp/41.+.3).rgb,.45);
@@ -147,7 +153,9 @@ OROADS.forEach(r=>{
 });
 LANES.forEach(l=>flat(l.x1-l.x0,l.z1-l.z0,(l.x0+l.x1)/2,(l.z0+l.z1)/2,.12,laneMat));
 flat(GATELINK.x1-GATELINK.x0,GATELINK.z1-GATELINK.z0+2,CX,(GATELINK.z0+GATELINK.z1)/2,.16,newAsphalt);
-IROADS.forEach(r=>flat(r.x1-r.x0,r.z1-r.z0,(r.x0+r.x1)/2,(r.z0+r.z1)/2,r===BOULEVARD?.17:.16,newAsphalt));
+/* main roads are asphalt; bylanes are laid in concrete, a little lower so the main road surface wins at junctions */
+const bylaneMat=worldUV(new THREE.MeshStandardMaterial({map:TX.concrete_floor_02.d,normalMap:TX.concrete_floor_02.n,color:new THREE.Color('#b9b4aa'),roughness:.9}),1/12,'byl');
+IROADS.forEach(r=>flat(r.x1-r.x0,r.z1-r.z0,(r.x0+r.x1)/2,(r.z0+r.z1)/2,r.main?.17:.15,r.main?newAsphalt:bylaneMat));
 
 /* lane markings */
 const dashes=[];
@@ -164,9 +172,11 @@ OROADS.forEach(r=>{
   dashLine(r.ax,r.az,r.bx,r.bz,(x,z)=>{for(const o of OROADS){if(o===r)continue;const oe=Math.abs(o.bx-o.ax)>Math.abs(o.bz-o.az);if(oe&&!ew&&Math.abs(z-o.az)<o.w/2+12)return true;if(!oe&&ew&&Math.abs(x-o.ax)<o.w/2+12)return true;}return false;});
   if(r.big){const o=r.w/2-1.2;dashLine(r.ax,r.az-o,r.bx,r.bz-o,(x)=>Math.abs(x-WEST_X)<20||Math.abs(x-EAST_X)<20||Math.abs(x-CX)<22,4,4.2,.4);dashLine(r.ax,r.az+o,r.bx,r.bz+o,(x)=>Math.abs(x-EAST_X)<20,4,4.2,.4);}
 });
-IROADS.forEach(r=>{if(r===BOULEVARD)return;const zc=(r.z0+r.z1)/2,ew=(r.x1-r.x0)>(r.z1-r.z0);
-  if(ew)dashLine(r.x0,zc,r.x1,zc,(x)=>(x>XB0-6&&x<XB1+6)||x<LANE+6||x>XE1-6,12,5,.4);
-  else dashLine((r.x0+r.x1)/2,r.z0,(r.x0+r.x1)/2,r.z1,(x,z)=>IROADS.some(o=>o!==r&&(o.x1-o.x0)>(o.z1-o.z0)&&z>o.z0-5&&z<o.z1+5),12,5,.4);});
+/* centre dashes on the 23 ft main roads, broken at every junction */
+const inOther=(r,x,z,m)=>IROADS.some(o=>o!==r&&x>o.x0-m&&x<o.x1+m&&z>o.z0-m&&z<o.z1+m);
+IROADS.forEach(r=>{if(!r.main)return;const ew=(r.x1-r.x0)>(r.z1-r.z0);
+  if(ew){const zc=(r.z0+r.z1)/2;dashLine(r.x0,zc,r.x1,zc,(x,z)=>inOther(r,x,z,4),12,5,.4);}
+  else{const xc=(r.x0+r.x1)/2;dashLine(xc,r.z0,xc,r.z1,(x,z)=>inOther(r,x,z,4),12,5,.4);}});
 {
   const g=new THREE.PlaneGeometry(1,1);g.rotateX(-Math.PI/2);
   const im=new THREE.InstancedMesh(g,M.mark,dashes.length),o=new THREE.Object3D();
@@ -200,20 +210,14 @@ plots.forEach(p=>{
   const cx=p.x+p.w/2,z=p.f==='n'?p.z:p.z+p.d,sg=p.f==='n'?-1:1;
   bx(M.concrete,cx-4,cx+4,.7,.82,Math.min(z,z+sg*2.2),Math.max(z,z+sg*2.2));
 });
-/* boulevard median with hedges */
 const hedgeMat=new THREE.MeshStandardMaterial({color:'#3f6a2a',roughness:.9});
-IROADS.filter(r=>r!==BOULEVARD&&(r.x1-r.x0)>(r.z1-r.z0)).map(r=>[r.z0,r.z1]).concat([[SZ1-30,SZ1+5]]).sort((a,b)=>a[0]-b[0]).reduce((s,[c0,c1])=>{
-  if(c0-s>12){bx(M.concrete,CX-2.2,CX+2.2,0,.9,s+4,c0-4);bx(hedgeMat,CX-1.7,CX+1.7,.9,2.2,s+5,c0-5);}
-  return c1;
-},0);
 
 /* ---------------- street lights and electric lines ---------------- */
 const LAMPS=[];
 IROADS.forEach(r=>{
-  const ew=(r.x1-r.x0)>(r.z1-r.z0);
-  if(r===BOULEVARD){for(let z=40;z<SZ1-20;z+=62)LAMPS.push([CX,z,0,0,1]);return;}
-  if(ew)for(let x=r.x0+30;x<r.x1-10;x+=62){if(x>XB0-8&&x<XB1+8)continue;LAMPS.push([x,r.z1-2.7,0,-1]);}
-  else for(let z=r.z0+30;z<r.z1-10;z+=62)LAMPS.push([r.x0===0?r.x0+2.7:r.x1-2.7,z,r.x0===0?1:-1,0]);
+  const ew=(r.x1-r.x0)>(r.z1-r.z0),step=r.main?62:80;
+  if(ew){for(let x=r.x0+24;x<r.x1-10;x+=step){const z=r.z1-2.7;if(inOther(r,x,z,6))continue;LAMPS.push([x,z,0,-1]);}}
+  else{for(let z=r.z0+24;z<r.z1-10;z+=step){const x=r.x0+2.7;if(inOther(r,x,z,6))continue;LAMPS.push([x,z,1,0]);}}
 });
 for(let x=-1400;x<2600;x+=120){if(Math.abs(x-CX)<30)continue;LAMPS.push([x,MAIN_Z-MAIN_W/2-4,0,1]);}
 const LAMP_HEADS=[];
@@ -249,7 +253,7 @@ const glowTex=canvasTex(64,64,(g,w,h)=>{const gr=g.createRadialGradient(32,32,0,
 }
 /* street-lamp light: every lamp's pool of light painted once into an overhead map that all ground-level
    surfaces read, so the pools are round, never pop in with distance, and light the road, verge, median and kerbs alike */
-const LMAP={x0:-1500,z0:-120,w:4200,h:1080};
+const LMAP={x0:SITE.x0-1500,z0:SITE.z0-160,w:SITE.x1-SITE.x0+3000,h:MAIN_Z+120-(SITE.z0-160)};
 const lampCv=document.createElement('canvas');lampCv.width=2048;lampCv.height=Math.round(2048*LMAP.h/LMAP.w);
 {
   const g=lampCv.getContext('2d'),sx=lampCv.width/LMAP.w,R0=30*sx;
@@ -269,7 +273,7 @@ function poleLine(ax,az,bx,bz,step){const L=Math.hypot(bx-ax,bz-az),n=Math.floor
 poleLine(-3400,MAIN_Z+MAIN_W/2+6,4200,MAIN_Z+MAIN_W/2+6,130);
 poleLine(WEST_X-18,-5200,WEST_X-18,MAIN_Z-40,130);
 poleLine(EAST_X+18,-6800,EAST_X+18,5600,130);
-poleLine(LANE+2,-6,SX1-2,-6,100);
+poleLine(EG.x+20,EG.z+WMAIN/2+6,EAST_X-20,EG.z+WMAIN/2+6,100);
 {
   const all=EPOLES.flat(),o=new THREE.Object3D();
   const pm=new THREE.MeshStandardMaterial({color:'#b7b3a8',roughness:.85});

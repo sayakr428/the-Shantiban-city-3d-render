@@ -47,7 +47,12 @@ const res = await esbuild.build({
   absWorkingDir: ROOT, nodePaths: [path.join(ROOT, 'node_modules')], legalComments: 'none'
 });
 const js = res.outputFiles[0].text;
-const tpl = fs.readFileSync(path.join(ROOT, 'src', 'template.html'), 'utf8');
+/* favicon and home-screen icon: the Shantiban City logo mark, inlined so both outputs carry it */
+const icon = f => 'data:image/png;base64,' + fs.readFileSync(path.join(ROOT, 'assets', f)).toString('base64');
+const tpl = fs.readFileSync(path.join(ROOT, 'src', 'template.html'), 'utf8').replace('{{FAVICON}}', () =>
+  `<link rel="icon" type="image/png" sizes="64x64" href="${icon('favicon-64.png')}">
+<link rel="apple-touch-icon" href="${icon('apple-touch-icon.png')}">
+<meta name="theme-color" content="#1f4d2c">`);
 const mb = n => (n / 1024 / 1024).toFixed(2) + ' MB';
 
 /* 1. single file: embed the full-size textures and models */
@@ -81,6 +86,22 @@ fs.writeFileSync(path.join(WEB, 'edgeone.json'), JSON.stringify({
     { source: '/index.html', headers: [{ key: 'Cache-Control', value: 'no-cache' }] }
   ]
 }, null, 2));
+/* Apache (Hostinger PHP/HTML hosting): correct types for the 3D models and textures, compression, long cache for hashed files */
+fs.writeFileSync(path.join(WEB, '.htaccess'), `AddType model/gltf-binary .glb
+AddType image/webp .webp
+AddType text/javascript .js
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/javascript application/javascript
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "\\.[0-9a-f]{8}\\.(js|webp|glb)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "^index\\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+`);
 const small = assets.filter(([id]) => id.endsWith('_s') || id.startsWith('mdl_')).reduce((s, [, f]) => s + fs.statSync(f).size, 0);
 const big = assets.filter(([id]) => !id.endsWith('_s')).reduce((s, [, f]) => s + fs.statSync(f).size, 0);
 console.log('web folder', WEB, '| script', mb(js.length), '| phone download', mb(small + js.length), '| desktop download', mb(big + js.length));

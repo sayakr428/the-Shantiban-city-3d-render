@@ -109,7 +109,7 @@ facadeMat.customProgramCacheKey=()=>'facade';
   mk(awn,awg,new THREE.MeshStandardMaterial({color:0xffffff,roughness:.7}),true,awnC);
 }
 /* ponds with slow ripples, fresnel and sky reflections */
-const waterMat=new THREE.MeshStandardMaterial({color:'#24332a',roughness:.06,metalness:0,envMapIntensity:1.2});
+const waterMat=new THREE.MeshStandardMaterial({color:'#24332a',roughness:.06,metalness:0,envMapIntensity:1.2,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4});
 waterMat.onBeforeCompile=sh=>{
   sh.uniforms.uTime=G.uTime;sh.uniforms.uWindStr=G.uWindStr;
   sh.vertexShader='varying vec3 vWWP;\n'+sh.vertexShader.replace('#include <fog_vertex>','#include <fog_vertex>\nvWWP=(modelMatrix*vec4(transformed,1.)).xyz;');
@@ -123,10 +123,10 @@ waterMat.onBeforeCompile=sh=>{
 };
 {
   const cg=new THREE.CircleGeometry(1,48);cg.rotateX(-Math.PI/2);
-  const im=new THREE.InstancedMesh(cg,waterMat,PONDS.length),rim=new THREE.InstancedMesh(cg,new THREE.MeshStandardMaterial({color:'#4a3e2b',roughness:1}),PONDS.length),o=new THREE.Object3D();
-  PONDS.forEach((p,i)=>{o.position.set(p.x,.09,p.z);o.rotation.set(0,p.rot,0);o.scale.set(p.rx,1,p.rz);o.updateMatrix();im.setMatrixAt(i,o.matrix);
-    o.position.y=.05;o.scale.set(p.rx+3.5,1,p.rz+3.5);o.updateMatrix();rim.setMatrixAt(i,o.matrix);});
-  im.receiveShadow=rim.receiveShadow=true;im.computeBoundingSphere();rim.computeBoundingSphere();scene.add(rim,im);
+  const im=new THREE.InstancedMesh(cg,waterMat,PONDS.length),rim=new THREE.InstancedMesh(cg,new THREE.MeshStandardMaterial({color:'#4a3e2b',roughness:1,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2}),PONDS.length),o=new THREE.Object3D();
+  PONDS.forEach((p,i)=>{o.position.set(p.x,.55,p.z);o.rotation.set(0,p.rot,0);o.scale.set(p.rx,1,p.rz);o.updateMatrix();im.setMatrixAt(i,o.matrix);
+    o.position.y=.35;o.scale.set(p.rx+3.5,1,p.rz+3.5);o.updateMatrix();rim.setMatrixAt(i,o.matrix);});
+  im.receiveShadow=rim.receiveShadow=true;rim.renderOrder=1;im.renderOrder=2;im.computeBoundingSphere();rim.computeBoundingSphere();scene.add(rim,im);
 }
 
 /* ---------------- nearby amenities (illustrative buildings at the stated distances) ---------------- */

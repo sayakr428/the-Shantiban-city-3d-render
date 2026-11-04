@@ -8,6 +8,7 @@ import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
+import {CSM} from 'three/addons/csm/CSM.js';
 
 window.__boot=true;
 const $=s=>document.querySelector(s);
@@ -29,10 +30,10 @@ const rr=(a,b)=>a+(b-a)*R(),pick=a=>a[(R()*a.length)|0];
    world = share of the surrounding town that is built, tex = texture size, life = share of animals and birds */
 const MOBILE=coarse||Math.min(screen.width,screen.height)<820;
 const QS={
-  high:{pr:Math.min(devicePixelRatio||1,1.25),grass:120000,shadow:3072,steps:34,sky:.45,life:1,fps:60,msaa:4,shadowEvery:1,world:1,tex:1024},
-  balanced:{pr:1,grass:60000,shadow:2048,steps:22,sky:.34,life:.8,fps:30,msaa:0,shadowEvery:2,world:.85,tex:1024},
-  fast:{pr:.85,grass:25000,shadow:1024,steps:14,sky:.28,life:.5,fps:30,msaa:0,shadowEvery:3,world:.6,tex:512},
-  mobile:{pr:Math.min(devicePixelRatio||1,1.35),grass:16000,shadow:1024,steps:12,sky:.25,life:.4,fps:30,msaa:0,shadowEvery:3,world:.45,tex:512}
+  high:{csc:3,pr:Math.min(devicePixelRatio||1,1.25),grass:120000,shadow:2048,steps:34,sky:.45,life:1,fps:60,msaa:4,shadowEvery:2,world:1,tex:1024},
+  balanced:{csc:3,pr:1,grass:60000,shadow:2048,steps:22,sky:.34,life:.8,fps:30,msaa:0,shadowEvery:2,world:.85,tex:1024},
+  fast:{csc:3,pr:.85,grass:25000,shadow:1024,steps:14,sky:.28,life:.5,fps:30,msaa:0,shadowEvery:3,world:.6,tex:512},
+  mobile:{csc:3,pr:Math.min(devicePixelRatio||1,1.35),grass:16000,shadow:1024,steps:12,sky:.25,life:.4,fps:30,msaa:0,shadowEvery:3,world:.45,tex:512}
 };
 let QK=MOBILE?'mobile':'balanced';
 try{QK=localStorage.getItem('sb-q3')||QK;}catch(e){}
@@ -58,7 +59,7 @@ try{const gl=renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_inf
   const name=ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);
   SOFTWARE=/swiftshader|basic render|llvmpipe|software|microsoft basic/i.test(name||'');}catch(e){}
 if(SOFTWARE){
-  Object.assign(Q,{pr:.5,grass:0,shadow:512,steps:8,sky:.2,life:.15,fps:12,msaa:0,shadowEvery:6,world:.3,tex:512});
+  Object.assign(Q,{csc:2,pr:.5,grass:0,shadow:512,steps:8,sky:.2,life:.15,fps:12,msaa:0,shadowEvery:6,world:.3,tex:512});
   const w=document.getElementById('gpuWarn');if(w)w.hidden=false;
   $('#loadMsg').textContent='Paused so your computer stays responsive.';
   const go=$('#loadAnyway');go.hidden=false;
@@ -70,13 +71,13 @@ renderer.setSize(innerWidth,innerHeight);
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=.8;
 renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-renderer.shadowMap.autoUpdate=false;
+renderer.shadowMap.type=THREE.PCFShadowMap;
+renderer.shadowMap.autoUpdate=true; /* each cascade decides for itself whether to re-render (see scheduleShadows) */
 const MAXANI=Math.min(8,renderer.capabilities.getMaxAnisotropy());
 
 const scene=new THREE.Scene();
 scene.fog=new THREE.FogExp2(0xc8d6dc,.000075);
-const camera=new THREE.PerspectiveCamera(MOBILE&&innerHeight>innerWidth?66:58,innerWidth/innerHeight,1,42000);
+const camera=new THREE.PerspectiveCamera(MOBILE&&innerHeight>innerWidth?66:58,innerWidth/innerHeight,1,30000);
 camera.rotation.order='YXZ';
 
 /* shared uniforms: every animated material reads these same objects */
@@ -86,7 +87,9 @@ const G={
   uWindStr:{value:1},
   uNight:{value:0},
   uGust:{value:null},
-  uLampOn:{value:0},uLampTex:{value:null},uLampBox:{value:new THREE.Vector4(0,0,1,1)}
+  uLampOn:{value:0},
+  /* cut-away: trees between the camera and uFocus turn see-through while the cricket game runs */
+  uSee:{value:0},uFocus:{value:new THREE.Vector3()},uSeeR:{value:26},uLampTex:{value:null},uLampBox:{value:new THREE.Vector4(0,0,1,1)}
 };
 /* adds the street-lamp light map to a lit material (chained after any existing shader edits) */
 function addLampLight(mat){
@@ -271,3 +274,5 @@ function signBoard(lines,W,H,x,y,z,ry,o={}){
   return f;
 }
 const SIGNS=[];
+/* park cricket hands-off: the game module fills these in; the walkthrough checks CRK.on */
+const CRK={on:false,open:null,close:null,frame:null,center:new V3(340,0,653)};

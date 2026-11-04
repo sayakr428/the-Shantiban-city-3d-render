@@ -2,11 +2,9 @@
    PLAYER, MODES, UI, LOOP
    ===================================================================== */
 prog(.9,'Final touches…');await tick();
-function insideSite(x,z){return x>SITE.x0&&x<SITE.x1&&z>SITE.z0&&z<SITE.z1;}
+function insideSite(x,z){return inSite(x,z);}
 function plotAt(x,z){
   if(!insideSite(x,z))return null;
-  const k=ROWZ.findIndex(z0=>z>=z0&&z<=z0+2*PD);if(k<0)return null;
-  let i;if(x>=XW0&&x<XW1)i=Math.floor((x-XW0)/PW);else if(x>=XE0&&x<XE1)i=Math.floor((x-XE0)/PW)+100;else return null;
   return plots.find(p=>x>=p.x&&x<=p.x+p.w&&z>=p.z&&z<=p.z+p.d)||null;
 }
 function groundAt(x,z){return plotAt(x,z)?PLOT_H:.17;}
@@ -35,26 +33,30 @@ function planPose(){return{p:new V3(plan.x,plan.h,plan.z),q:new THREE.Quaternion
 function startTrans(pose,dur,done){trans={p0:camera.position.clone(),q0:camera.quaternion.clone(),p1:pose.p,q1:pose.q,t:0,dur:reduceMotion?.01:dur,done};}
 
 /* guided walk along the internal roads */
-const RC=k=>RROW[k].z0+ROWRD/2;
-const TOUR_PTS=[[CX-6,SZ1+45],[CX-6,SZ1-25],[CX-6,620],[CX-6,RC(4)+4],[CX-20,RC(4)],[500,RC(4)],[830,RC(4)],[SX1-10,RC(4)-12],[SX1-10,RC(3)+10],[SX1-10,RC(1)],[SX1-10,24],[830,10],[500,10],[CX-20,10],[200,10],[30,10],[10,30],[10,RC(1)-10],[24,RC(2)],[200,RC(2)],[CX-20,RC(2)],[CX-6,RC(2)+14],[CX-6,RC(3)],[CX-6,RC(4)-6],[CX-16,RC(4)],[205,RC(4)],[196,560],[196,600],[205,640]];
+const zc=r=>(r.z0+r.z1)/2;
+const TOUR_PTS=[[CX-5,SZ1+45],[CX-5,SZ1-25],[CX-5,zc(XROAD)+30],[CX-30,zc(XROAD)+4],[XROAD.x0+30,zc(XROAD)+4],[XROAD.x0+60,zc(XROAD)-4],[CX-30,zc(XROAD)-4],
+  [CX+30,zc(XROAD)+4],[XROAD.x1-30,zc(XROAD)+4],[XROAD.x1-60,zc(XROAD)-4],[CX+30,zc(XROAD)-4],[CX+5,zc(XROAD)-30],[CX+5,zc(NROAD)+30],
+  [CX+30,zc(NROAD)+4],[NROAD.x1-40,zc(NROAD)+4],[NROAD.x1-70,zc(NROAD)-4],[CX+30,zc(NROAD)-4],[CX-5,zc(NROAD)+30],[CX-5,zc(XROAD)-30],
+  [CX-14,zc(XROAD)+16],[PARK.x1+5,(PARK.z0+PARK.z1)/2]];
 const tourCurve=new THREE.CatmullRomCurve3(TOUR_PTS.map(([x,z])=>new V3(x,0,z)),false,'centripetal');
 const tour={u:0,len:tourCurve.getLength()};
 function tourYawAt(u){const a=tourCurve.getPointAt(u),b=tourCurve.getPointAt(Math.min(u+.01,1));return Math.atan2(-(b.x-a.x),-(b.z-a.z));}
 
 /* cinematic drone film: key positions and look targets in feet, with captions */
+const Cx=SITE_C.x,Cz=SITE_C.z,PKx=(PARK.x0+PARK.x1)/2,PKz=(PARK.z0+PARK.z1)/2,HLx=(HALL.x0+GYM.x1)/2,HLz=(HALL.z0+HALL.z1)/2;
 const CINE=[
-  {t:0,p:[2300,1250,2700],l:[431,0,380],c:['SHANTIBAN CITY','Tapna, Baruipur · South 24 Parganas']},
-  {t:9,p:[1500,600,1750],l:[431,0,520]},
-  {t:17,p:[560,90,1080],l:[431,20,760],c:['A gated community','with security at the main gate']},
-  {t:24,p:[431,11,815],l:[431,9,700]},
-  {t:30,p:[431,10,680],l:[431,8,540],c:['30 ft central boulevard','wide internal roads, street lights and covered drains']},
-  {t:37,p:[431,55,470],l:[260,0,380]},
-  {t:45,p:[150,210,300],l:[431,0,280],c:['220 plots in five blocks','each plot 36 ft × 40 ft, about 2 katha']},
-  {t:53,p:[90,150,830],l:[212,0,653],c:['A park to walk, sit and play','with a walking track and a children’s corner']},
-  {t:60,p:[720,95,850],l:[669,10,627],c:['Community hall and shops','for everyday needs, inside the gate']},
-  {t:68,p:[6400,4300,4600],l:[-900,0,-500],c:['Close to daily life','market ~500 m · school ~1.5 km · bus terminus ~1.5 km · hospital ~2 km · Koyal More ~1.5 km']},
-  {t:78,p:[2600,2100,-1700],l:[431,0,380],c:['About 20 km from Kolkata','Baruipur ~4.5 km · Garia Metro ~14 km · Joka Metro ~15 km']},
-  {t:86,p:[2300,1250,2700],l:[431,0,380]}
+  {t:0,p:[Cx+1870,1250,Cz+2320],l:[Cx,0,Cz],c:['SHANTIBAN CITY','Tapna, Baruipur · South 24 Parganas']},
+  {t:9,p:[Cx+1070,600,Cz+1370],l:[Cx,0,Cz+140]},
+  {t:17,p:[CX+130,90,SZ1+330],l:[CX,20,SZ1+10],c:['A gated community','two gates with security, on the Baruipur–Amtala road']},
+  {t:24,p:[CX,11,SZ1+60],l:[CX,9,SZ1-60]},
+  {t:30,p:[CX,10,SZ1-70],l:[CX,8,zc(XROAD)],c:['23 ft main roads, 13 ft bylanes','street lights along every road']},
+  {t:37,p:[CX,55,zc(XROAD)-90],l:[Cx-170,0,Cz]},
+  {t:45,p:[SITE.x0-280,210,Cz-80],l:[Cx,0,Cz-100],c:['220 plots in five blocks','each plot 36 ft × 50 ft, 2.5 katha']},
+  {t:53,p:[PARK.x0-120,150,PARK.z1+180],l:[PKx,0,PKz],c:['A park to walk, sit and play','with a cricket ground and a children’s garden']},
+  {t:60,p:[CX+290,95,SZ1+100],l:[HLx,10,HLz],c:['Community hall, gym and shops','for everyday needs, inside the gate']},
+  {t:68,p:[Cx+5970,4300,Cz+4220],l:[Cx-1330,0,Cz-880],c:['Close to daily life','market ~500 m · school ~1.5 km · bus terminus ~1.5 km · hospital ~2 km · Koyal More ~1.5 km']},
+  {t:78,p:[Cx+2170,2100,Cz-2080],l:[Cx,0,Cz],c:['About 20 km from Kolkata','Baruipur ~4.5 km · Garia Metro ~14 km · Joka Metro ~15 km']},
+  {t:86,p:[Cx+1870,1250,Cz+2320],l:[Cx,0,Cz]}
 ];
 const cineP=new THREE.CatmullRomCurve3(CINE.map(k=>new V3(...k.p)),false,'catmullrom',.5);
 const cineL=new THREE.CatmullRomCurve3(CINE.map(k=>new V3(...k.l)),false,'catmullrom',.5);
@@ -74,7 +76,7 @@ function setMode(m){
   skyReset=true;
   if(m==='walk'){player.pitch=clamp(player.pitch,-.5,.4);startTrans(walkPose(),prev==='plan'?1.4:1);}
   else if(m==='drone'){player.y=Math.max(player.y+90,120);player.pitch=-.42;startTrans(eyePose(),1.2);}
-  else if(m==='plan'){plan.x=clamp(player.x,-200,1100);plan.z=clamp(player.z,-200,1000);startTrans(planPose(),1.3);}
+  else if(m==='plan'){if(inSite(player.x,player.z)){plan.x=player.x;plan.z=player.z;}else{plan.x=SITE_C.x;plan.z=SITE_C.z;plan.h=camera.aspect<1?1500:1250;}   /* from outside, open on the whole site */startTrans(planPose(),1.3);}
   else if(m==='tour'){tour.u=0;const a=tourCurve.getPointAt(0);player.x=a.x;player.z=a.z;player.yaw=tourYawAt(0);player.pitch=-.04;startTrans(walkPose(),1.4);toast('Guided walk started. Hold Shift to speed up, or press any move key to take over.');}
   else if(m==='cine'){cine.t=0;cine.cap=-1;const p=cineP.getPoint(0);camera.position.copy(p);camera.lookAt(cineL.getPoint(0));if(lampsOn>.6)setTimeUI(PRESETS.morning);}
   if(m!=='cine'){$('#cap').classList.remove('on');}
@@ -121,8 +123,8 @@ function showInsp(p,pin){
   inspPlot=p;insp.hidden=false;
   const far=Math.hypot(player.x-(p.x+p.w/2),player.z-(p.z+p.d/2))>70;
   insp.innerHTML=`<button class="insp-x" id="inspX" aria-label="Close">×</button><div class="insp-no">Plot ${p.no}</div>
-    <div class="insp-area">2 katha <small>${p.sqft.toLocaleString('en-IN')} sq ft</small></div>
-    <dl><dt>Size</dt><dd>36′ × 40′</dd><dt>Block</dt><dd>${p.b}</dd><dt>Faces</dt><dd>${FACE[p.f]}, onto the ${p.road.n.replace(/^\d+ ft /,m=>m)}</dd>
+    <div class="insp-area">${+p.katha.toFixed(2)} katha <small>${p.sqft.toLocaleString('en-IN')} sq ft</small></div>
+    <dl><dt>Size</dt><dd>${p.w}′ × ${p.d}′</dd><dt>Block</dt><dd>${p.b}</dd><dt>Faces</dt><dd>${FACE[p.f]}, onto the ${p.road.n.replace(/^\d+ ft /,m=>m)}</dd>
     ${p.corner?`<dt>Corner</dt><dd>Also borders ${p.cornerRoad}</dd>`:''}</dl>
     <p class="insp-design">${built.has(p)?'Shown with the sample rooftop-terrace home, fitted to this plot.':'Empty plot. You can preview a sample home on it.'}</p>
     <div class="insp-actions">
@@ -140,7 +142,7 @@ function showInsp(p,pin){
 const keys={};
 const typing=()=>document.activeElement&&document.activeElement.tagName==='INPUT'&&document.activeElement.type!=='range';
 addEventListener('keydown',e=>{
-  if(typing()||mode==='intro')return;
+  if(CRK.on||typing()||mode==='intro')return;
   const k=e.key.toLowerCase();keys[k]=true;
   if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();
   if(k==='1')setMode('walk');else if(k==='2')setMode('drone');else if(k==='3'||k==='m')setMode('plan');else if(k==='4'||k==='t')setMode('tour');else if(k==='5'||k==='c')setMode('cine');
@@ -151,7 +153,7 @@ addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 const ptrs=new Map(),joy={x:0,y:0,id:null};
 let pinchD=0,planMoved=false;
 canvas.addEventListener('pointerdown',e=>{
-  if(mode==='intro')return;
+  if(CRK.on||mode==='intro')return;
   if(mode==='cine'){mode='x';setMode('drone');return;}
   canvas.setPointerCapture(e.pointerId);
   const role=(e.pointerType==='touch'&&mode!=='plan'&&e.clientX<innerWidth*.45&&joy.id===null)?'joy':'look';
@@ -162,6 +164,7 @@ canvas.addEventListener('pointerdown',e=>{
   if(ptrs.size===2&&mode==='plan'){const[a,b]=[...ptrs.values()];pinchD=Math.hypot(a.x-b.x,a.y-b.y);}
 });
 canvas.addEventListener('pointermove',e=>{
+  if(CRK.on)return;
   const pt=ptrs.get(e.pointerId);
   if(!pt){if(e.pointerType==='mouse')hoverQueued=[e.clientX,e.clientY];return;}
   const dx=e.clientX-pt.x,dy=e.clientY-pt.y;pt.x=e.clientX;pt.y=e.clientY;
@@ -177,6 +180,7 @@ canvas.addEventListener('pointermove',e=>{
   player.yaw-=dx*s;player.pitch=clamp(player.pitch-dy*s,-1.45,1.4);
 });
 function endPtr(e){
+  if(CRK.on)return;
   const pt=ptrs.get(e.pointerId);if(!pt)return;ptrs.delete(e.pointerId);
   if(pt.role==='joy'){joy.id=null;joy.x=joy.y=0;$('#joy').hidden=true;$('#knob').style.transform='';}
   if(ptrs.size===0)canvas.classList.remove('dragging');
@@ -188,7 +192,7 @@ function endPtr(e){
   }
 }
 canvas.addEventListener('pointerup',endPtr);canvas.addEventListener('pointercancel',endPtr);
-canvas.addEventListener('wheel',e=>{if(mode!=='plan')return;e.preventDefault();plan.h=clamp(plan.h*Math.exp(e.deltaY*.0012),60,2600);},{passive:false});
+canvas.addEventListener('wheel',e=>{if(CRK.on||mode!=='plan')return;e.preventDefault();plan.h=clamp(plan.h*Math.exp(e.deltaY*.0012),60,2600);},{passive:false});
 $('#zin').onclick=()=>{plan.h=clamp(plan.h/1.3,60,2600);};
 $('#zout').onclick=()=>{plan.h=clamp(plan.h*1.3,60,2600);};
 const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();
@@ -226,7 +230,9 @@ function flyTo(p,dist,alt){
   h('Inside Shantiban City');
   INSIDE.forEach(a=>row(a.n,'',()=>{
     if(a.key==='gate'){player.x=CX;player.z=SZ1+45;player.yaw=0;player.pitch=0;mode='x';setMode('walk');return;}
+    if(a.key==='egate'){player.x=GATES[1].x+45;player.z=GATES[1].z;player.yaw=Math.PI/2;player.pitch=0;mode='x';setMode('walk');return;}
     flyTo(a.p,140,90);}));
+  row('Play cricket in the park','in the park',()=>CRK.open&&CRK.open());
   h('Further away');
   FAR.forEach(([n,d])=>{const e=document.createElement('div');e.className='near-row static';e.innerHTML=`<span>${n}</span><b>${d}</b>`;L.appendChild(e);});
   const p=document.createElement('p');p.className='near-note';p.textContent='Distances are approximate, as provided in the project information. Buildings outside the boundary are illustrative.';L.appendChild(p);
@@ -245,7 +251,7 @@ const mini=$('#mini');
 const dpr=Math.min(devicePixelRatio||1,2);
 const miniStatic=document.createElement('canvas');
 let mapView='site';
-const MAPB={site:{x0:-40,x1:SX1+40,z0:-50,z1:SZ1+90}};
+const MAPB={site:{x0:SITE.x0-40,x1:SITE.x1+40,z0:SITE.z0-50,z1:MAIN_Z+40}};
 { /* area bounds: the site and every nearby place, with a margin */
   let x0=SITE.x0,x1=SITE.x1,z0=SITE.z0,z1=SITE.z1;
   AMEN.forEach(a=>{x0=Math.min(x0,a.p.x);x1=Math.max(x1,a.p.x);z0=Math.min(z0,a.p.z);z1=Math.max(z1,a.p.z);});
@@ -284,19 +290,22 @@ function drawMiniStatic(){
   if(mapView==='site'){
     R2({x0:-2000,x1:3000,z0:-2000,z1:3000},'#4f7a36');
     OROADS.forEach(r=>road(r,'#7a7f82',3));
-    R2(SITE,'#6f9a52');
+    {g.fillStyle='#6f9a52';g.beginPath();SITE_POLY.forEach(([x,z],i)=>{const[a,b]=m2(x,z);i?g.lineTo(a,b):g.moveTo(a,b);});g.closePath();g.fill();
+     g.strokeStyle='#efe3c6';g.lineWidth=1.5*dpr;g.stroke();}
     IROADS.forEach(r=>R2(r,'#8a8f92'));R2(GATELINK,'#8a8f92');
-    R2(PARK,'#3f8f3c');R2(HALL,'#f1ece0');R2(SHOPS,'#e2cfa6');R2(PARKING,'#a8a196');R2(XFMR,'#d9b22e');
+    R2(PARK,'#3f8f3c');R2(HALL,'#f1ece0');R2(SHOPS,'#e2cfa6');R2(PLAY,'#4d9a45');R2(GREEN,'#4d9a45');R2(GYM,'#dfe6f0');R2(XFMR,'#d9b22e');
     plots.forEach(p=>R2({x0:p.x+.7,x1:p.x+p.w-.7,z0:p.z+.7,z1:p.z+p.d-.7},'#c47a52'));
     g.textAlign='center';g.textBaseline='middle';
-    for(let k=0;k<5;k++){const[x,y]=m2(CX,ROWZ[k]+PD);g.font=`800 ${10*dpr}px "Anek Bangla", sans-serif`;
+    for(let k=0;k<BLOCKS.length;k++){const ps=plots.filter(p=>p.k===k);if(!ps.length)continue;
+      const q=ps[Math.floor(ps.length/2)],[x,y]=m2(q.x+q.w/2,q.z+q.d/2);g.font=`800 ${10*dpr}px "Anek Bangla", sans-serif`;
       g.fillStyle='rgba(12,28,19,.85)';g.beginPath();g.arc(x,y,7.5*dpr,0,6.3);g.fill();g.fillStyle='#f0a91b';g.fillText(BLOCKS[k],x,y+.5*dpr);}
     const lbl=(r,t)=>{const[x,y]=m2((r.x0+r.x1)/2,(r.z0+r.z1)/2);g.font=`700 ${9*dpr}px "Anek Bangla", sans-serif`;g.fillStyle='rgba(12,28,19,.9)';g.fillText(t,x,y);};
-    lbl(PARK,'Park');lbl(HALL,'Hall');
+    lbl(PARK,'Park');lbl(HALL,'Hall');lbl(GYM,'Gym');
     {const[x,y]=m2((SHOPS.x0+SHOPS.x1)/2,(SHOPS.z0+SHOPS.z1)/2);g.save();g.translate(x,y);g.rotate(-Math.PI/2);g.font=`700 ${8.5*dpr}px "Anek Bangla", sans-serif`;g.fillStyle='rgba(12,28,19,.9)';g.fillText('Shops',0,0);g.restore();}
-    const[gx,gz]=m2(CX,SZ1);g.fillStyle='#f0a91b';g.fillRect(gx-7*dpr,gz-2*dpr,14*dpr,4*dpr);
-    g.font=`700 ${9*dpr}px "Anek Bangla", sans-serif`;g.fillStyle='#fbfaf3';g.fillText('Main gate',gx,gz+9*dpr);
-    {const[mx,my]=m2(CX+300,MAIN_Z);g.fillStyle='rgba(255,255,255,.92)';g.font=`600 ${8.5*dpr}px "Anek Bangla", sans-serif`;g.fillText('Main road',mx,my);}
+    EXITS.forEach(E=>{const[ex,ez]=m2(E.x,E.z);g.fillStyle='#f0a91b';g.beginPath();g.arc(ex,ez,3*dpr,0,6.3);g.fill();});
+    GATES.forEach((G,i)=>{const[gx,gz]=m2(G.x,G.z);g.fillStyle='#e0281e';g.beginPath();g.arc(gx,gz,4.5*dpr,0,6.3);g.fill();
+      g.font=`700 ${9*dpr}px "Anek Bangla", sans-serif`;g.fillStyle='#fbfaf3';g.fillText(i?'East gate':'Main gate',i?gx-4*dpr:gx,i?gz-10*dpr:gz+10*dpr);});
+    {const[mx,my]=m2(SITE_C.x+260,MAIN_Z);g.fillStyle='rgba(255,255,255,.92)';g.font=`600 ${8.5*dpr}px "Anek Bangla", sans-serif`;g.fillText('Baruipur–Amtala road',mx,my);}
   }else{
     CLUSTERS_ALL.forEach(c=>R2(c,'#b9a98a'));
     OROADS.forEach(r=>road(r,'#e9e4d6',2.2));
@@ -376,12 +385,14 @@ const inR=(r,x,z,m=0)=>x>r.x0-m&&x<r.x1+m&&z>r.z0-m&&z<r.z1+m;
 function placeName(x,z){
   const p=plotAt(x,z);if(p)return `Plot ${p.no} · ${p.b}`;
   if(insideSite(x,z)){
-    for(const r of IROADS)if(inR(r,x,z)){if(r===BOULEVARD)return r.n;const k=RROW.indexOf(r);return k>=0?`${r.n}, between ${BLOCKS[k]} and ${k<4?BLOCKS[k+1]:'the park'}`:r.n;}
-    if(inR(PARK,x,z))return 'Park';if(inR(HALL,x,z,20))return 'Community hall';if(inR(SHOPS,x,z,4))return 'Shops for daily needs';if(inR(PARKING,x,z))return 'Parking';if(inR(XFMR,x,z,4))return 'Electricity transformer';
+    for(const r of IROADS)if(inR(r,x,z)){return r.n;}
+    if(inR(PARK,x,z))return 'Park';if(inR(HALL,x,z,20))return 'Community hall';if(inR(SHOPS,x,z,4))return 'Shops for daily needs';if(inR(GYM,x,z,8))return 'Gym';if(inR(PLAY,x,z))return 'Children’s garden';if(inR(XFMR,x,z,4))return 'Electricity transformer';
     if(z>SZ1-22&&Math.abs(x-CX)<30)return 'Main gate';
+    if(Math.hypot(x-GATES[1].x,z-GATES[1].z)<30)return 'East gate';
+    if(EXITS.some(E=>Math.hypot(x-E.x,z-E.z)<22))return 'Exit gate';
     return 'Inside Shantiban City';
   }
-  if(Math.abs(z-MAIN_Z)<MAIN_W/2+4)return 'Main road';
+  if(Math.abs(z-MAIN_Z)<MAIN_W/2+4)return 'Baruipur–Amtala road';
   if(inR(GATELINK,x,z,6))return 'Outside the main gate';
   if(inR(MARKET,x,z,30))return 'Market (about 500 m)';if(inR(BUS,x,z,30))return 'Bus terminus (about 1.5 km)';
   if(inR(SCHOOL,x,z,30))return 'School (about 1.5 km)';if(inR(HOSPITAL,x,z,30))return 'Hospital (about 2 km)';
@@ -459,15 +470,15 @@ function update(dt,raw){
   camera.position.set(player.x,player.y+by,player.z);
   camera.rotation.set(player.pitch,player.yaw,0,'YXZ');
 }
+/* shadows: the cascades follow the view frustum (that is how cascades work) but are fixed to the sun
+   direction; the maps are re-rendered only when the camera moves or the sun changes */
+const _lastCam=new THREE.Matrix4();let camMoved=true;let _lastFov=0,_lastNear=0,_lastAsp=0;
 function updateShadow(){
-  const p=camera.position;let half;
-  if(mode==='walk'||mode==='tour')half=260;
-  else if(mode==='plan')half=clamp(plan.h*.75,300,1300);
-  else half=clamp(p.y*1.6,280,1300);
-  const fw=new V3();camera.getWorldDirection(fw);fw.y=0;if(fw.lengthSq()>1e-4)fw.normalize();
-  const cx=p.x+fw.x*half*.45,cz=p.z+fw.z*half*.45;
-  const c=sun.shadow.camera;if(c.right!==half){c.left=-half;c.right=half;c.top=half;c.bottom=-half;c.updateProjectionMatrix();}
-  sun.target.position.set(cx,0,cz);sun.position.set(cx+sunVec.x*1800,sunVec.y*1800,cz+sunVec.z*1800);sun.target.updateMatrixWorld();
+  if(camera.fov!==_lastFov||camera.near!==_lastNear||camera.aspect!==_lastAsp){_lastFov=camera.fov;_lastNear=camera.near;_lastAsp=camera.aspect;csmFrustums();}
+  camera.updateMatrixWorld();
+  camMoved=false;
+  if(!_lastCam.equals(camera.matrixWorld)){_lastCam.copy(camera.matrixWorld);camMoved=true;}
+  if(camMoved||shadowDirty)csm.update();
 }
 
 /* ---------------- post-processing ---------------- */
@@ -492,39 +503,47 @@ function frame(now){
   requestAnimationFrame(frame);
   /* frame cap: draw only as often as needed; idle and background windows get very few frames */
   if(document.hidden)return;
-  const cap=unfocused?6:mode==='intro'?20:Q.fps;
+  const cap=unfocused?6:CRK.on?(MOBILE?30:45):mode==='intro'?20:Q.fps;
   if(now-lastDraw<1000/cap-3)return;
   lastDraw=now;frameN++;
   const raw=Math.min((now-last)/1000,.5),dt=Math.min(.05,raw);last=now;fpsN++;fpsT+=raw;
   G.uTime.value+=reduceMotion?dt*.25:dt;
   skyU.uTime.value=G.uTime.value;
-  update(dt,raw);
+  if(CRK.on)CRK.frame(dt);else update(dt,raw);
   updateLife(dt);
   GRASS.u.uCam.value.set(camera.position.x,camera.position.z);
-  GRASS.mesh.visible=camera.position.y<260;
+  GRASS.mesh.visible=!CRK.on&&camera.position.y<260;
+  /* near clip plane: 1 ft on foot (walls can be close); from the air it grows with altitude, which keeps
+     depth precision high enough that flat layers (ponds, roads) never fight with the ground */
+  if(!CRK.on){const want=(mode==='walk'||mode==='tour')?1:Math.round(clamp(camera.position.y*.05,2,25)*2)/2;
+    if(camera.near!==want){camera.near=want;camera.updateProjectionMatrix();}}
   updateShadow();
-  const showPins=labelsOn&&mode!=='intro';
+  const showPins=labelsOn&&mode!=='intro'&&!CRK.on;
   /* place labels float over the 3D view only from high up (Fly, Plan, the film's aerial shots); on foot the map shows them */
   const high=camera.position.y>320,inFilm=mode==='cine'&&cine.t>64&&cine.t<84;
   PINS.forEach(p=>{p.s.visible=showPins&&(mode==='plan'?(p.kind==='in'?plan.h<1300:plan.h>1300):((mode==='drone'&&high)||inFilm)&&p.kind!=='in');});
-  ARCS.visible=labelsOn&&(mode==='plan'||mode==='drone'&&camera.position.y>300||mode==='cine'&&cine.t>64&&cine.t<84||mode==='intro');
+  ARCS.visible=!CRK.on&&labelsOn&&(mode==='plan'||mode==='drone'&&camera.position.y>300||mode==='cine'&&cine.t>64&&cine.t<84||mode==='intro');
   pickT+=dt;
-  if(pickT>.12&&!trans&&mode!=='intro'&&mode!=='cine'){
+  if(pickT>.12&&!trans&&!CRK.on&&mode!=='intro'&&mode!=='cine'){
     pickT=0;
     /* mouse hover: highlight the plot under the cursor and preview its details */
     if(hoverQueued&&!ptrs.size){const p=pickAt(hoverQueued[0],hoverQueued[1]);canvas.classList.toggle('over-plot',!!p);if(!inspPinned)showInsp(p,false);}
     hoverQueued=null;
   }
-  hudT+=dt;if(hudT>.15&&mode!=='intro'){hudT=0;updateHud();drawMini();}
-  if(frameN%Q.shadowEvery===0)renderer.shadowMap.needsUpdate=true;
+  hudT+=dt;if(hudT>.15&&mode!=='intro'&&!CRK.on){hudT=0;updateHud();drawMini();
+    /* offer the cricket game when walking or flying low over the park */
+    const inPark=inR(PARK,player.x,player.z,8)&&(mode==='walk'||mode==='tour'||(mode==='drone'&&player.y<200));$('#pcEnter').hidden=!inPark;}
+  /* exposure eases toward its target over about a second instead of jumping */
+  renderer.toneMappingExposure+=(EXPO.target-renderer.toneMappingExposure)*Math.min(1,dt*2.5);
+  scheduleShadows(frameN,camMoved);
   renderSky();
   composer.render();
   /* adaptive quality: if the scene runs slowly for a while, lighten the sky and resolution */
-  if(fpsT>2){const fps=fpsN/fpsT;fpsN=0;fpsT=0;if(fps<Q.fps*.8&&!unfocused&&!adapted&&mode!=='intro'){slowT++;if(slowT>2){adapted=true;skyU.uSteps.value=Math.min(skyU.uSteps.value,24);renderer.setPixelRatio(1);onResize();toast('Lowered the detail a little to keep it smooth.');}}else slowT=0;window.__fps=fps;}
+  if(fpsT>2){const fps=fpsN/fpsT;fpsN=0;fpsT=0;if(fps<Q.fps*.8&&!unfocused&&!adapted&&!CRK.on&&mode!=='intro'){slowT++;if(slowT>2){adapted=true;skyU.uSteps.value=Math.min(skyU.uSteps.value,24);renderer.setPixelRatio(1);onResize();toast('Lowered the detail a little to keep it smooth.');}}else slowT=0;window.__fps=fps;}
 }
 function onResize(){
   renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);
-  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();sizeSky();
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();sizeSky();csmFrustums();
   if(!$('#mapwrap').hidden)sizeMini();
 }
 addEventListener('resize',onResize);
@@ -537,6 +556,8 @@ prog(.96,'Preparing the graphics…');await tick();
 /* street-lamp light on every lit surface (skinned animals excluded), including materials used later by the sample homes */
 scene.traverse(o=>{if(o.isMesh&&!o.isSkinnedMesh)(Array.isArray(o.material)?o.material:[o.material]).forEach(addLampLight);});
 Object.values(HMAT).forEach(addLampLight);Object.values(M).forEach(addLampLight);
+/* every lit material joins the shadow cascades (including the sample-home materials used later) */
+csmSweep();Object.values(HMAT).forEach(csmSetup);Object.values(M).forEach(csmSetup);
 try{await renderer.compileAsync(scene,camera);}catch(e){}
 prog(1,'Ready.');
 window.__ready=true;
@@ -557,4 +578,4 @@ const ew=$('#enterWalk');ew.disabled=false;ew.textContent='Walk in from the main
 $('#enterCine').textContent='Watch the drone film';
 ew.onclick=()=>enter('walk');$('#enterPlan').onclick=()=>enter('plan');$('#enterCine').onclick=()=>enter('cine');
 $('.prog').hidden=true;$('#loadMsg').hidden=true;
-window.__shantiban={AGENTS,bloom,composer,renderer,scene,sun,ground,P:PRESETS,setMode,setTime:setTimeUI,player,plan,goToPlot,plots,enter,camera,skyU,G,cine,flyTo,AMEN,houses:HOUSES.length,trees:TREES.length};
+window.__shantiban={csm,HOUSES,AGENTS,bloom,composer,renderer,scene,sun,ground,P:PRESETS,setMode,setTime:setTimeUI,player,plan,goToPlot,plots,enter,camera,skyU,G,cine,flyTo,AMEN,houses:HOUSES.length,trees:TREES.length};

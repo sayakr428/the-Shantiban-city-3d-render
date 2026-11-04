@@ -33,7 +33,7 @@ function animal(K,x,z,{radius=40,speed=1.8,tint=null,clipWalk='Walk',clipIdle=['
 function setAct(a,name){const n=a.acts[name]||a.walk;if(a.cur===n)return;if(a.cur)a.cur.fadeOut(.4);n.reset().fadeIn(.4).play();a.cur=n;}
 const fieldSpot=(x0,x1,z0,z1)=>{for(let i=0;i<40;i++){const x=rr(x0,x1),z=rr(z0,z1);if(!occAt(x,z))return[x,z];}return[x0,z0];};
 for(let k=0;k<NA(10);k++){const[x,z]=k<4?fieldSpot(-600,-120,-700,700):k<7?fieldSpot(1000,1800,-900,600):fieldSpot(-300,1200,900,1500);animal(k%5===4?BULL:COW,x,z,{radius:50});}
-[[-24,240],[-30,520],[SX1+26,160],[SX1+22,600]].slice(0,NA(4)).forEach(([x,z],k)=>animal(k%2?COW:BULL,x,z,{radius:20,speed:1.4}));
+[[WEST_X+24,SITE_C.z-160],[WEST_X+30,SITE_C.z+140],[EAST_X-26,SITE_C.z-220],[EAST_X-22,SITE_C.z+200]].slice(0,NA(4)).forEach(([x,z],k)=>animal(k%2?COW:BULL,x,z,{radius:20,speed:1.4}));
 for(let k=0;k<NA(8);k++){
   const spots=[[CX+rr(-200,200),MAIN_Z+rr(-14,14)],[MARKET.x0+rr(10,400),MARKET.z0+rr(10,200)],[EAST_X+rr(-12,12),rr(-500,800)],[WEST_X+rr(-12,12),rr(-900,600)],[KOYAL.x+rr(-60,60),KOYAL.z+rr(-60,60)]];
   const[x,z]=spots[k%spots.length];
