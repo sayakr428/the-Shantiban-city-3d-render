@@ -33,3 +33,4 @@ assets/Soldier.glb
 # local end-to-end tests (machine-specific browser path)
 livetest.mjs
 slowphone.mjs
+smoothtest.mjs

@@ -34,6 +34,16 @@ for (const t of TEX) {
     }
   }
 }
+/* photo facades for the nearby hospital, school and market (generated on Google Flow, cleaned and
+   cropped into assets_raw/fac/): kept at their own aspect ratio, 1536 px wide (768 on phones) */
+const FAC = ['hosp_front', 'hosp_wing', 'school_front', 'school_wing', 'market_shops', 'market_stall', 'tin_roof'];
+for (const f of FAC) {
+  for (const [w, tag] of [[1536, ''], [768, '_s']]) {
+    const out = path.join(OUT_TEX, `fac_${f}_d${tag}.webp`);
+    if (!fs.existsSync(out)) await sharp(path.join(ROOT, 'assets_raw', 'fac', `${f}.png`)).resize({ width: w }).webp({ quality: tag ? 78 : 84 }).toFile(out);
+    assets.push([`tex_fac_${f}_d${tag}`, out, `tex/fac_${f}_d${tag}.webp`]);
+  }
+}
 for (const m of MODELS) assets.push([`mdl_${m}`, path.join(ROOT, 'assets', `${m}.glb`), `${m}.glb`]);
 assets.push(['img_logo', path.join(ROOT, 'assets', 'logo.webp'), 'logo.webp']);
 
@@ -43,7 +53,7 @@ fs.mkdirSync(path.join(ROOT, '.build'), { recursive: true });
 const entry = path.join(ROOT, '.build', 'entry.js');
 fs.writeFileSync(entry, parts.map(f => fs.readFileSync(path.join(ROOT, 'src', f), 'utf8')).join('\n'));
 const res = await esbuild.build({
-  entryPoints: [entry], bundle: true, minify: true, format: 'esm', target: 'es2022', write: false,
+  entryPoints: [entry], bundle: true, minify: !process.env.SB_NOMINIFY, format: 'esm', target: 'es2022', write: false,
   absWorkingDir: ROOT, nodePaths: [path.join(ROOT, 'node_modules')], legalComments: 'none'
 });
 const js = res.outputFiles[0].text;

@@ -129,71 +129,154 @@ waterMat.onBeforeCompile=sh=>{
   im.receiveShadow=rim.receiveShadow=true;rim.renderOrder=1;im.renderOrder=2;im.computeBoundingSphere();rim.computeBoundingSphere();scene.add(rim,im);
 }
 
-/* ---------------- nearby amenities (illustrative buildings at the stated distances) ---------------- */
+/* ---------------- nearby amenities: photo-surfaced West Bengal buildings ----------------
+   The hospital, school and market fronts are photographs generated for this project (Google Flow),
+   wrapped onto real 3D masses with roofs, parapets, porches, rooftop water tanks and tin sheds. */
 prog(.68,'Adding the market, school, hospital and bus terminus…');await tick();
 const AMEN_TREES=[];
-/* market, about 500 m */
-const STALLS=[];
+const FAC={};
+await Promise.all(['hosp_front','hosp_wing','school_front','school_wing','market_shops','market_stall','tin_roof'].map(async n=>{
+  const t=await texAsset('tex_fac_'+n+'_d');t.wrapS=THREE.MirroredRepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;FAC[n]=t;}));
+const facAspect=n=>FAC[n].image.width/FAC[n].image.height;
+const FACMAT=new Map();
+/* one material per (photo, repeat count, offset) so the bays always land on whole tiles */
+function facMat(n,rep,off=0){
+  const k=n+'|'+rep+'|'+off;if(FACMAT.has(k))return FACMAT.get(k);
+  const t=FAC[n].clone();t.repeat.set(rep,1);t.offset.set(off,0);t.needsUpdate=true;
+  const m=new THREE.MeshStandardMaterial({map:t,roughness:.88});FACMAT.set(k,m);return m;
+}
+/* a photo wall from (ax,az) to (bx,bz), facing left of the direction of travel, h feet tall.
+   The photo is repeated a whole number of times along the wall, at its own aspect ratio. */
+function photoWall(n,ax,az,bx2,bz2,h,y0=0,opt={}){
+  const L=Math.hypot(bx2-ax,bz2-az),ux=(bx2-ax)/L,uz=(bz2-az)/L;
+  const rep=opt.rep||Math.max(1,Math.round(L/(h*facAspect(n))));
+  const w=new THREE.Mesh(new THREE.PlaneGeometry(L,h),facMat(n,rep));
+  w.position.set((ax+bx2)/2-uz*.02,y0+h/2,(az+bz2)/2+ux*.02);w.rotation.y=Math.atan2(-uz,ux);
+  w.castShadow=true;w.receiveShadow=true;scene.add(w);return w;
+}
+/* a block: plastered core, photo faces where given, a roof slab with an overhang and parapet */
+function photoBlock(x0,x1,z0,z1,h,faces,o={}){
+  bx(o.core||M.plasterW,x0+.05,x1-.05,0,h,z0+.05,z1-.05);
+  const F={s:[x0,z1,x1,z1],e:[x1,z1,x1,z0],n:[x1,z0,x0,z0],w:[x0,z0,x0,z1]};
+  for(const k in F)if(faces[k]){const f=faces[k];const[n,rep]=Array.isArray(f)?f:[f,0];photoWall(n,...F[k],h,0,{rep});}
+  const ov=o.overhang??1.2,pt=o.parapet??3;
+  bx(M.concrete,x0-ov,x1+ov,h,h+.9,z0-ov,z1+ov);
+  if(pt){for(const[a,b,c,d]of[[x0-ov,x1+ov,z0-ov,z0-ov+.7],[x0-ov,x1+ov,z1+ov-.7,z1+ov],[x0-ov,x0-ov+.7,z0-ov,z1+ov],[x1+ov-.7,x1+ov,z0-ov,z1+ov]])bx(o.parapetMat||M.white,a,b,h+.9,h+.9+pt,c,d);}
+  BLOCK_TOPS.push({x0,x1,z0,z1,y:h+.9});
+}
+/* the black plastic water tanks every Bengal rooftop carries, and a stair cabin */
+const BLOCK_TOPS=[];
+const tankMat=new THREE.MeshStandardMaterial({color:'#1b1c1d',roughness:.55});
+function roofKit(t,nTanks){
+  const cx=(t.x0+t.x1)/2,cz=(t.z0+t.z1)/2;
+  bx(M.plasterW,cx-7,cx+7,t.y,t.y+9,cz-6,cz+6);bx(M.concrete,cx-8,cx+8,t.y+9,t.y+9.8,cz-7,cz+7);
+  for(let i=0;i<nTanks;i++){const x=t.x0+8+i*((t.x1-t.x0-16)/Math.max(1,nTanks-1)),z=t.z0+7;
+    bx(M.concrete,x-3,x+3,t.y,t.y+2.2,z-3,z+3);
+    const tk=new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.6,5.6,16),tankMat);tk.position.set(x,t.y+2.2+2.8,z);tk.castShadow=true;scene.add(tk);
+    const lid=new THREE.Mesh(new THREE.CylinderGeometry(.9,.9,.5,12),tankMat);lid.position.set(x,t.y+8.2,z);scene.add(lid);}
+}
+/* a covered porch on columns in front of a face, with steps */
+function porch(cx,cz,ry,w,d,h){
+  const L=(m,a,b,c,e,f,g)=>bx(m,cx+a,cx+b,c,e,cz+f,cz+g,ry,cx,cz);
+  L(M.concrete,-w/2-1,w/2+1,h,h+1.2,-d,0);L(M.white,-w/2-1.3,w/2+1.3,h+1.2,h+2.4,-d-.3,-d+.6);
+  for(const x of[-w/2+1,w/2-1])L(M.white,x-.9,x+.9,0,h,-d+.4,-d+2.2);
+  for(let i=0;i<3;i++)L(M.concrete,-w/2+2,w/2-2,0,1.5-i*.5,-d-1.6*(i+1)+1.6,-d-1.6*i+1.6);
+}
+
+/* the photographs carry daylight in them: dim them with the evening so they sit in the night scene */
+const FAC_DIM=[];
+TIME_HOOKS.push((on,night)=>{const k=1-.62*Math.max(on,night||0);FACMAT.forEach(m=>m.color.setScalar(k));FAC_DIM.forEach(m=>m.color.setScalar(k));});
+/* market, about 500 m: shop rows on the road, tin-roofed bazaar sheds behind */
 {
-  const m=MARKET;
-  flat(m.x1-m.x0,m.z1-m.z0,(m.x0+m.x1)/2,(m.z0+m.z1)/2,.15,M.mud);
-  const tarp=['#2f6fb0','#3a86c8','#d8a030','#c8452e','#e9e4d8','#2e7d4f','#f08c2e'].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.75,side:THREE.DoubleSide}));
-  const bamboo=new THREE.MeshStandardMaterial({color:'#a88b55',roughness:.8});
-  const veg=['#c8361e','#7b3a6b','#9a7448','#3f7a2a','#e8c22a','#d9702a','#e9e2cc'].map(c=>new THREE.Color(c));
-  const piles=[];
-  for(let row=0;row<5;row++)for(let col=0;col<11;col++){
-    const x=m.x0+30+col*39+(row%2)*8,z=m.z0+26+row*42;if(x>m.x1-20)continue;
-    STALLS.push([x,z]);
-    bx(M.concrete,x-5,x+5,0,2.6,z-3,z+3);
-    for(const[a,b]of[[-5.5,-3.5],[5.5,-3.5],[-5.5,3.5],[5.5,3.5]])bx(bamboo,x+a-.15,x+a+.15,0,b<0?8.6:7.4,z+b-.15,z+b+.15);
-    const t=new THREE.Mesh(UNITBOX,tarp[(row*11+col)%tarp.length]);t.scale.set(12.6,.08,8.6);t.position.set(x,8,z);t.rotation.x=.14;t.castShadow=true;t.receiveShadow=true;scene.add(t);
-    for(let k=0;k<6;k++)piles.push([x-3.6+k*1.45,2.6,z+(k%2?.9:-.9),veg[(row+col+k)%veg.length]]);
+  const m=MARKET,gx=(m.x0+m.x1)/2;
+  flat(m.x1-m.x0,m.z1-m.z0,gx,(m.z0+m.z1)/2,.15,M.mud);
+  /* two-storey shop rows facing the main road, either side of the bazaar entrance */
+  const sh=24,sd=30;
+  for(const[a,b]of[[m.x0+8,gx-26],[gx+26,m.x1-8]]){
+    photoBlock(a,b,m.z0+4,m.z0+4+sd,sh,{n:'market_shops',s:'market_shops'},{core:M.plaster,parapet:2.4,overhang:.8});
+    roofKit(BLOCK_TOPS.at(-1),Math.max(1,Math.round((b-a)/70)));
+    BLOCKERS?.push?.([a,b,m.z0+4,m.z0+4+sd]);
   }
-  const pg=new THREE.SphereGeometry(.85,10,6);pg.scale(1,.55,1);
-  const pm=new THREE.InstancedMesh(pg,new THREE.MeshStandardMaterial({color:0xffffff,roughness:.6}),piles.length),o=new THREE.Object3D();
-  piles.forEach(([x,y,z,c],i)=>{o.position.set(x,y+.35,z);o.scale.setScalar(.9+((i*7)%5)*.08);o.updateMatrix();pm.setMatrixAt(i,o.matrix);pm.setColorAt(i,c);});
-  pm.castShadow=true;pm.instanceColor.needsUpdate=true;scene.add(pm);
-  /* market gate arch onto the main road */
-  const gx=(m.x0+m.x1)/2;
-  for(const x of[gx-22,gx+22])bx(M.laterRed,x-1.2,x+1.2,0,17,m.z0-3,m.z0-.6);
-  signBoard([{t:'MARKET',s:120},{t:'বাজার',s:66,wt:600,c:'#f0a91b'}],40,6.5,gx,18,m.z0-1.8,Math.PI,{w:1024,h:180,bg:'#7a2e1f'});
-  for(let i=0;i<10;i++)AMEN_TREES.push({t:'mango',x:m.x0+rr(10,m.x1-m.x0-10),z:m.z1-rr(6,14),s:rr(.8,1)});
+  /* entrance arch */
+  for(const x of[gx-22,gx+22])bx(M.laterRed,x-1.2,x+1.2,0,17,m.z0+2,m.z0+4.4);
+  signBoard([{t:'MARKET',s:120},{t:'বাজার',s:66,wt:600,c:'#f0a91b'}],40,6.5,gx,18,m.z0+3.2,Math.PI,{w:1024,h:180,bg:'#7a2e1f'});
+  /* open bazaar sheds: steel posts, a pitched corrugated tin roof, stalls of produce underneath */
+  const tinMat=worldUV(new THREE.MeshStandardMaterial({map:FAC.tin_roof,roughness:.5,metalness:.45,side:THREE.DoubleSide}),1/13,'tin');
+  const stallMat=facMat('market_stall',1);
+  FAC_DIM.push(tinMat);
+  const post=new THREE.MeshStandardMaterial({color:'#5d5f60',roughness:.5,metalness:.6}),woodM=new THREE.MeshStandardMaterial({color:'#7a5f42',roughness:.9});
+  const shedL=150,shedD=34,z0=m.z0+sd+30;
+  for(let row=0;row*48+z0+shedD<m.z1-10;row++)for(const sx of[m.x0+30,m.x0+30+shedL+30]){
+    if(sx+shedL>m.x1-10)continue;
+    const sz=z0+row*48,cx=sx+shedL/2,cz=sz+shedD/2;
+    for(let x=sx;x<=sx+shedL+.1;x+=25)for(const z of[sz,sz+shedD])bx(post,x-.3,x+.3,0,12,z-.3,z+.3);
+    for(const sg of[-1,1]){const r=new THREE.Mesh(UNITBOX,tinMat);r.scale.set(shedL+6,.12,shedD/2+3);
+      r.position.set(cx,13.6,cz+sg*(shedD/4+.6));r.rotation.x=sg*.2;r.castShadow=true;r.receiveShadow=true;scene.add(r);}
+    bx(post,sx-3,sx+shedL+3,15.3,15.7,cz-.25,cz+.25);
+    /* a walkway down the middle of the shed, with a line of stalls either side facing it:
+       a wooden platform and the photographed produce on a display leaning back from the walkway */
+    for(let x=sx+3;x<sx+shedL-12;x+=14)for(const sg of[-1,1]){
+      const fz=cz+sg*5.5,bz=cz+sg*(shedD/2-1);
+      bx(woodM,x,x+12,0,2.4,Math.min(fz,bz),Math.max(fz,bz));
+      const dw=12,dh=dw/facAspect('market_stall'),d=new THREE.Mesh(new THREE.PlaneGeometry(dw,dh),stallMat);
+      d.position.set(x+6,2.4+dh*.35,fz+sg*1.1);d.rotation.order='YXZ';d.rotation.y=sg>0?Math.PI:0;d.rotation.x=-1.0;d.castShadow=true;d.receiveShadow=true;scene.add(d);
+    }
+  }
+  for(let i=0;i<8;i++)AMEN_TREES.push({t:R()<.5?'mango':'coco',x:m.x0+rr(10,m.x1-m.x0-10),z:m.z1-rr(4,9),s:rr(.8,1)});
 }
-/* school, about 1.5 km */
+/* school, about 1.5 km: a three-storey U of classroom wings round a courtyard that opens to the road */
 {
-  const s=SCHOOL,x0=s.x0+20,x1=s.x0+190,z0=s.z0+25,z1=s.z1-25;
+  const s=SCHOOL,h=34,d=36;
   flat(s.x1-s.x0,s.z1-s.z0,(s.x0+s.x1)/2,(s.z0+s.z1)/2,.13,pbr('brown_mud_02',1/12,{color:new THREE.Color('#c9b08a'),roughness:1},'sch'));
-  const ylw=pbr('painted_plaster_wall',1/9,{color:new THREE.Color('#f1d48a')},'ylw'),grn=new THREE.MeshStandardMaterial({color:'#2f6b3e',roughness:.7});
-  const wing=(a,b,c,d)=>{bx(ylw,a,b,0,32,c,d);for(let f=0;f<3;f++){bx(grn,a-.2,b+.2,f*10.5+.0,f*10.5+1.1,c-.2,d+.2);}
-    bx(M.concrete,a-1,b+1,32,33.2,c-1,d+1);};
-  wing(x0,x0+42,z0,z1);wing(x0+42,x1,z0,z0+40);wing(x0+42,x1,z1-40,z1);
-  for(let z=z0+4;z<z1-4;z+=9){for(let f=0;f<3;f++)bx(M.glass,x0+42-.1,x0+42.05,f*10.5+3.5,f*10.5+8.5,z,z+5);}
-  for(const z of[z0+40,z1-40])for(let x=x0+48;x<x1-4;x+=9)for(let f=0;f<3;f++)bx(M.glass,x,x+5,f*10.5+3.5,f*10.5+8.5,z>s.z0+100?z-.05:z-.05,z+.1);
-  const pf=(s.x0+s.x1)/2+60;
-  for(const z of[s.z0+70,s.z1-70]){bx(M.white,pf-.3,pf+.3,0,8,z-12,z-11.4);bx(M.white,pf-.3,pf+.3,0,8,z+11.4,z+12);bx(M.white,pf-.3,pf+.3,7.6,8.2,z-12,z+12);}
-  bx(M.metal,x1+20,x1+20.4,0,32,(z0+z1)/2-.2,(z0+z1)/2+.2);
-  const flag=new THREE.Mesh(new THREE.PlaneGeometry(7,4.5),new THREE.MeshStandardMaterial({map:canvasTex(96,64,(g,w,h)=>{g.fillStyle='#ff9933';g.fillRect(0,0,w,h/3);g.fillStyle='#ffffff';g.fillRect(0,h/3,w,h/3);g.fillStyle='#138808';g.fillRect(0,2*h/3,w,h/3);g.strokeStyle='#000080';g.lineWidth=2;g.beginPath();g.arc(w/2,h/2,8,0,6.3);g.stroke();}),side:THREE.DoubleSide,roughness:.7}));
-  flag.position.set(x1+23.8,29.5,(z0+z1)/2);scene.add(flag);
-  for(let z=s.z0;z<=s.z1;z+=10){bx(M.cream,s.x1-1,s.x1,0,5.5,z,Math.min(z+10,s.z1));bx(M.cream,s.x0,s.x0+1,0,5.5,z,Math.min(z+10,s.z1));}
-  for(let x=s.x0;x<s.x1;x+=10){bx(M.cream,x,Math.min(x+10,s.x1),0,5.5,s.z0,s.z0+1);bx(M.cream,x,Math.min(x+10,s.x1),0,5.5,s.z1-1,s.z1);}
-  signBoard([{t:'SCHOOL',s:120},{t:'বিদ্যালয়',s:66,wt:600,c:'#f0a91b'}],22,5.4,x0-.4,20,(z0+z1)/2,-Math.PI/2,{w:1024,h:240,bg:'#2f6b3e'});
+  const x0=s.x0+40,zc=(s.z0+s.z1)/2,half=140,wingL=150;
+  /* main wing: central staircase block flanked by classroom bays, all facing the courtyard (east) */
+  const cw=Math.round(h*facAspect('school_front'));
+  photoBlock(x0,x0+d,zc-cw/2,zc+cw/2,h+4,{e:'school_front'},{parapet:3});roofKit(BLOCK_TOPS.at(-1),2);
+  for(const[a,b]of[[zc-half,zc-cw/2],[zc+cw/2,zc+half]])photoBlock(x0,x0+d,a,b,h,{e:'school_wing',w:'school_wing',n:a<zc?'school_wing':0,s:a<zc?0:'school_wing'});
+  /* side wings running toward the road */
+  photoBlock(x0+d,x0+d+wingL,zc-half,zc-half+d,h,{s:'school_wing',n:'school_wing',e:'school_wing'});roofKit(BLOCK_TOPS.at(-1),1);
+  photoBlock(x0+d,x0+d+wingL,zc+half-d,zc+half,h,{n:'school_wing',s:'school_wing',e:'school_wing'});roofKit(BLOCK_TOPS.at(-1),1);
+  BLOCKERS?.push?.([x0,x0+d,zc-half,zc+half],[x0+d,x0+d+wingL,zc-half,zc-half+d],[x0+d,x0+d+wingL,zc+half-d,zc+half]);
+  /* flag post in the courtyard, goal posts, boundary wall and gate */
+  const fx=x0+d+wingL-20;
+  bx(M.concrete,fx-3,fx+3,0,1.6,zc-3,zc+3);bx(M.metal,fx-.2,fx+.2,1.6,30,zc-.2,zc+.2);
+  const flag=new THREE.Mesh(new THREE.PlaneGeometry(7,4.5),new THREE.MeshStandardMaterial({map:canvasTex(96,64,(g,w,hh)=>{g.fillStyle='#ff9933';g.fillRect(0,0,w,hh/3);g.fillStyle='#ffffff';g.fillRect(0,hh/3,w,hh/3);g.fillStyle='#138808';g.fillRect(0,2*hh/3,w,hh/3);g.strokeStyle='#000080';g.lineWidth=2;g.beginPath();g.arc(w/2,hh/2,8,0,6.3);g.stroke();}),side:THREE.DoubleSide,roughness:.7}));
+  flag.position.set(fx+3.6,27.5,zc);scene.add(flag);
+  for(const z of[zc-60,zc+60]){bx(M.white,x0+d+70-.3,x0+d+70+.3,0,8,z-12,z-11.4);bx(M.white,x0+d+70-.3,x0+d+70+.3,0,8,z+11.4,z+12);bx(M.white,x0+d+70-.3,x0+d+70+.3,7.6,8.2,z-12,z+12);}
+  const wallC=pbr('painted_plaster_wall',1/9,{color:new THREE.Color('#e9eef3')},'swl'),blue=new THREE.MeshStandardMaterial({color:'#3f7fc0',roughness:.6});
+  for(let z=s.z0;z<s.z1;z+=10){const z2=Math.min(z+10,s.z1);if(Math.abs((z+z2)/2-zc)>14){bx(wallC,s.x1-1,s.x1,0,5.5,z,z2);bx(blue,s.x1-1.1,s.x1+.1,4.9,5.6,z,z2);}bx(wallC,s.x0,s.x0+1,0,5.5,z,z2);}
+  for(let x=s.x0;x<s.x1;x+=10){const x2=Math.min(x+10,s.x1);bx(wallC,x,x2,0,5.5,s.z0,s.z0+1);bx(wallC,x,x2,0,5.5,s.z1-1,s.z1);bx(blue,x,x2,4.9,5.6,s.z0-.1,s.z0+1.1);bx(blue,x,x2,4.9,5.6,s.z1-1.1,s.z1+.1);}
+  for(const z of[zc-14,zc+14])bx(blue,s.x1-1.5,s.x1+.5,0,10,z-1.5,z+1.5);
+  signBoard([{t:'SCHOOL',s:120},{t:'বিদ্যালয়',s:66,wt:600,c:'#f0a91b'}],26,5.4,s.x1+.6,13.4,zc,Math.PI/2,{w:1024,h:240,bg:'#2f6fb0'});
   for(let i=0;i<12;i++)AMEN_TREES.push({t:R()<.5?'mango':'coco',x:rr(s.x0+8,s.x1-8),z:R()<.5?s.z0+rr(6,14):s.z1-rr(6,14),s:rr(.8,1.05)});
+  AMEN_TREES.push({t:'mango',x:x0+d+wingL-60,z:zc+40,s:1.15});
 }
-/* hospital, about 2 km */
+/* hospital, about 2 km: a five-storey block facing the road (west), with a porch and wings */
 {
-  const h=HOSPITAL,x0=h.x0+90,x1=h.x1-30,z0=h.z0+60,z1=h.z1-90;
-  flat(h.x1-h.x0,h.z1-h.z0,(h.x0+h.x1)/2,(h.z0+h.z1)/2,.14,M.concrete);
-  bx(M.plasterW,x0,x1,0,52,z0,z1);bx(M.concrete,x0-1.5,x1+1.5,52,54,z0-1.5,z1+1.5);
-  for(let f=0;f<5;f++){bx(M.glass,x1-.05,x1+.1,f*10.4+3,f*10.4+9.2,z0+6,z1-6);bx(M.glass,x0+6,x1-6,f*10.4+3,f*10.4+9.2,z0-.1,z0+.05);bx(M.glass,x0+6,x1-6,f*10.4+3,f*10.4+9.2,z1-.05,z1+.1);
-    bx(M.glass,x0-.1,x0+.05,f*10.4+3,f*10.4+9.2,z0+6,z1-6);bx(new THREE.MeshStandardMaterial({color:'#2d6aa8',roughness:.4}),x0-.4,x0,f*10.4+9.2,f*10.4+10.4,z0+2,z1-2);}
-  bx(M.white,x0-30,x0,13,14.2,(z0+z1)/2-26,(z0+z1)/2+26);
-  for(const z of[(z0+z1)/2-24,(z0+z1)/2+24])bx(M.white,x0-29,x0-27.6,0,13,z-.7,z+.7);
+  const H=HOSPITAL,h=58,d=60,xf=H.x0+150,zc=(H.z0+H.z1)/2;
+  /* grounds: lawn, a paved forecourt and drive in front, parking strips along the sides */
+  flat(H.x1-H.x0,H.z1-H.z0,(H.x0+H.x1)/2,zc,.13,pbr('leafy_grass',1/10,{roughness:1},'hgr'));
+  flat(xf-8-H.x0,150,(H.x0+xf-8)/2,zc,.15,M.pavers);
+  flat(xf-8-H.x0,28,(H.x0+xf-8)/2,zc,.16,M.asphalt);
+  for(const z of[zc-130,zc+130])flat(xf-H.x0-30,40,(H.x0+xf)/2,z,.15,M.concrete);
+  const cw=Math.round((h+6)*facAspect('hosp_front')),wing=110;
+  photoBlock(xf-8,xf-8+d+8,zc-cw/2,zc+cw/2,h+6,{w:'hosp_front',n:'hosp_wing',s:'hosp_wing',e:'hosp_wing'},{parapet:3.4});roofKit(BLOCK_TOPS.at(-1),3);
+  photoBlock(xf,xf+d,zc-cw/2-wing,zc-cw/2,h,{w:'hosp_wing',n:'hosp_wing',e:'hosp_wing'});roofKit(BLOCK_TOPS.at(-1),2);
+  photoBlock(xf,xf+d,zc+cw/2,zc+cw/2+wing,h,{w:'hosp_wing',s:'hosp_wing',e:'hosp_wing'});roofKit(BLOCK_TOPS.at(-1),2);
+  BLOCKERS?.push?.([xf-8,xf+d,zc-cw/2-wing,zc+cw/2+wing]);
+  /* drive-in porch with a ramp, at the main entrance */
+  porch(xf-8,zc,-Math.PI/2,46,30,14);
+  const ramp=new THREE.Mesh(UNITBOX,M.pavers);ramp.scale.set(30,.6,10);ramp.position.set(xf-30,.3,zc+30);ramp.receiveShadow=true;scene.add(ramp);
   const cross=canvasTex(256,256,(g,w,h2)=>{g.fillStyle='#ffffff';g.fillRect(0,0,w,h2);g.fillStyle='#d32f2f';g.fillRect(96,28,64,200);g.fillRect(28,96,200,64);});
   const cm=new THREE.MeshStandardMaterial({map:cross,emissive:'#ffffff',emissiveMap:cross,emissiveIntensity:0,roughness:.5});SIGNS.push(cm);
-  const cp=new THREE.Mesh(new THREE.PlaneGeometry(14,14),cm);cp.position.set(x0-.3,40,(z0+z1)/2-60);cp.rotation.y=-Math.PI/2;scene.add(cp);
-  const cp2=cp.clone();cp2.position.set((x0+x1)/2,40,z1+.3);cp2.rotation.y=0;scene.add(cp2);const cp3=cp.clone();cp3.position.set((x0+x1)/2,40,z0-.3);cp3.rotation.y=Math.PI;scene.add(cp3);
-  signBoard([{t:'HOSPITAL',s:120},{t:'হাসপাতাল',s:66,wt:600,c:'#d32f2f'}],40,7,x0-.3,24,(z0+z1)/2,-Math.PI/2,{back:false,frame:false,w:1024,h:200,bg:'#ffffff',border:'#d32f2f'});
-  for(let i=0;i<10;i++)AMEN_TREES.push({t:'areca',x:h.x0+rr(10,60),z:rr(h.z0+20,h.z1-20),s:rr(.85,1)});
+  for(const[x,z,ry]of[[xf-8.4,zc-cw/2+16,-Math.PI/2],[xf-8.4,zc+cw/2-16,-Math.PI/2]]){const cp=new THREE.Mesh(new THREE.PlaneGeometry(12,12),cm);cp.position.set(x,h-6,z);cp.rotation.y=ry;scene.add(cp);}
+  signBoard([{t:'HOSPITAL',s:120,c:'#c62828'},{t:'হাসপাতাল',s:66,wt:600,c:'#1f3f6e'}],34,6.2,xf-8-.35,h-14,zc,-Math.PI/2,{back:false,frame:false,w:1024,h:200,bg:'#ffffff',border:'#c62828'});
+  /* boundary wall with a gate onto the road */
+  const wallC=pbr('painted_plaster_wall',1/9,{color:new THREE.Color('#e9eef3')},'hwl'),blue=new THREE.MeshStandardMaterial({color:'#3f7fc0',roughness:.6});
+  for(let z=H.z0;z<H.z1;z+=10){const z2=Math.min(z+10,H.z1);if(Math.abs((z+z2)/2-zc)>20){bx(wallC,H.x0,H.x0+1,0,5.5,z,z2);bx(blue,H.x0-.1,H.x0+1.1,4.9,5.6,z,z2);}}
+  for(const z of[zc-20,zc+20])bx(blue,H.x0-.5,H.x0+1.5,0,11,z-1.5,z+1.5);
+  for(let i=0;i<14;i++)AMEN_TREES.push({t:R()<.5?'areca':'coco',x:H.x0+rr(12,xf-H.x0-30),z:R()<.5?rr(H.z0+15,zc-80):rr(zc+80,H.z1-15),s:rr(.85,1)});
+  for(let i=0;i<8;i++)AMEN_TREES.push({t:'mango',x:rr(xf+d+20,H.x1-15),z:rr(H.z0+20,H.z1-20),s:rr(.85,1.05)});
 }
 /* bus terminus, about 1.5 km */
 {

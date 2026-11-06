@@ -558,7 +558,27 @@ scene.traverse(o=>{if(o.isMesh&&!o.isSkinnedMesh)(Array.isArray(o.material)?o.ma
 Object.values(HMAT).forEach(addLampLight);Object.values(M).forEach(addLampLight);
 /* every lit material joins the shadow cascades (including the sample-home materials used later) */
 csmSweep();Object.values(HMAT).forEach(csmSetup);Object.values(M).forEach(csmSetup);
+/* upload the nearby buildings' photo textures now, so the first flight to them does not stall on it */
+try{Object.values(FAC).forEach(t=>renderer.initTexture(t));FACMAT.forEach(m=>renderer.initTexture(m.map));}catch(e){}
 try{await renderer.compileAsync(scene,camera);}catch(e){}
+/* warm-up: one hidden render, with shadows, beside each nearby building, so the shadow shaders for the
+   bazaar sheds, stalls and photo walls are built during loading rather than on the first visit */
+try{
+  prog(.98,'Warming up…');
+  const cp=camera.position.clone(),cq=camera.quaternion.clone(),V=new V3();
+  /* through the composer, as the real frames are drawn, so the exact shader variants get built;
+     the views: each nearby place from the air, and the main gate on foot (grass blades show only near the ground) */
+  const gv=GRASS.mesh.visible;GRASS.mesh.visible=true;
+  const views=AMEN.map(a=>{const d=a.p.clone().sub(SITE_C).setY(0).normalize();return[a.p.x+d.x*200,90,a.p.z+d.z*200,a.p.x,0,a.p.z];});
+  views.push([CX,EYE,SZ1+45,CX,EYE,SZ1-200]);
+  for(const[x,y,z,lx,ly,lz]of views){
+    camera.position.set(x,y,z);camera.lookAt(lx,ly,lz);camera.updateMatrixWorld();
+    GRASS.u.uCam.value.set(x,z);
+    csm.update();csm.lights.forEach(l=>l.shadow.needsUpdate=true);renderSky();composer.render();await tick();
+  }
+  GRASS.mesh.visible=gv;
+  camera.position.copy(cp);camera.quaternion.copy(cq);camera.updateMatrixWorld();csm.update();shadowDirty=true;
+}catch(e){}
 prog(1,'Ready.');
 window.__ready=true;
 requestAnimationFrame(frame);

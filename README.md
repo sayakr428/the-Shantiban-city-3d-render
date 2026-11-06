@@ -30,6 +30,11 @@ Built with [three.js](https://threejs.org/) r160 and bundled by esbuild into a s
   500 m), school and bus terminus (about 1.5 km each), hospital (about 2 km) and Koyal More (about
   1.5 km). Farther places (Baruipur, Garia and Joka Metro, Kolkata and others) are listed on a
   distances board by the gate.
+- **West Bengal-style buildings for those places:** a blue-and-white government district hospital,
+  a three-storey school around a courtyard, and a bazaar with a row of old shopfronts and
+  tin-roofed vegetable sheds. Their walls are photorealistic facade images generated for this
+  project on Google Flow (prompts in `reference/amenity-prompts.md`, generated with no lettering so no
+  real names appear), wrapped onto 3D masses with roofs, parapets, porches and rooftop water tanks.
 - **Surroundings:** a dense procedural town of thousands of homes, with paddy fields, ponds,
   coconut, areca, banana and mango trees, cattle, stray dogs and birds.
 
@@ -47,6 +52,8 @@ Built with [three.js](https://threejs.org/) r160 and bundled by esbuild into a s
   size, block and facing. From the same card you can preview a sample home fitted to that plot.
 - **Map:** a two-view map (Site and Area) with your position and the nearby places; click a place
   to go there. The map can be minimised.
+- **Smooth playback:** every shader is built during loading (a hidden warm-up render beside each
+  nearby place), so flying around never stalls on a first view.
 - **Quality tiers:** Phone, Light, Balanced and High. Phones are detected automatically and
   download about 3 MB; desktops download about 7.7 MB. Drawing is capped at 30 fps by default and
   pauses in background tabs.
@@ -153,6 +160,7 @@ Any other static host works too: upload the contents of `dist/web/`.
 | Stork and parrot models | [three.js examples](https://github.com/mrdoob/three.js/tree/r160/examples/models/gltf) | from the MIT-licensed three.js repository |
 | three.js | [mrdoob/three.js](https://github.com/mrdoob/three.js) | MIT |
 | Park cricket game logic | adapted from [MuhammadaliMS/galli-cricket](https://github.com/MuhammadaliMS/galli-cricket) | no licence published in that repository |
+| Hospital, school and market facade images | generated for this project with Google Flow (Nano Banana Pro) | AI-generated imagery |
 | Anek Bangla font | [Google Fonts](https://fonts.google.com/specimen/Anek+Bangla) | SIL Open Font License |
 
 The Shantiban City name and logo belong to MRITYIKA REALTERS OPC PRIVATE LIMITED and aren't
